@@ -8,6 +8,8 @@ For information on how to setup a network based on (known) conditional probabili
 To get started with querying a network, try the following:
 ```python
 import pybn as bn
+
+# Load an example network
 Gs = bn.setup_student_network()
 
 # This should output the prior probability of random variable 'S' (SAT score).
