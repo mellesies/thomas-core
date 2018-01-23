@@ -1,7 +1,7 @@
 # py-bn
 Very simple (almost naive ;-) bayesian network implementation.
 
-Examplee (module `pybn.examples`) is based on the book "Probabilistic Graphical Models: Principles and Techniques" from Koller and Friedman ([PGM Stanford](http://pgm.stanford.edu)).
+Example (module `pybn.examples`) is based on the book "Probabilistic Graphical Models: Principles and Techniques" from Koller and Friedman ([PGM Stanford](http://pgm.stanford.edu)).
 
 For information on how to setup a network based on (known) conditional probabilities see `pybn.examples.get_student_network()`.
 
