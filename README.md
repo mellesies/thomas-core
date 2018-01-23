@@ -10,7 +10,7 @@ To get started with querying a network, try the following:
 import pybn as bn
 
 # Load an example network
-Gs = bn.setup_student_network()
+Gs = bn.examples.get_student_network()
 
 # This should output the prior probability of random variable 'S' (SAT score).
 Gs.P('S')

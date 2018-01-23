@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 class TestBayesianNetwork(unittest.TestCase):
     
     def setUp(self):
-        self.Gs = bn.setup_student_network()
+        self.Gs = bn.examples.get_student_network()
 
     def test_basic_setup(self):
         random_vars = ['D', 'I', 'G', 'S', 'L']
