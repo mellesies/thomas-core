@@ -8,8 +8,6 @@ import unittest
 from datetime import datetime
 from termcolor import colored
 
-import util
-
 class TestResult(unittest.TextTestResult):
   
   def __init__(self, stream, descriptions, verbosity, log):
@@ -129,7 +127,7 @@ def find_tests(path='./'):
   return suites
 
 
-def run_tests(suites, config):
+def run_tests(suites):
   log = logging.getLogger('TEST')
   print('-' * 90)
   print('Started: ' + datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
@@ -142,10 +140,8 @@ def run_tests(suites, config):
 
 
 def run():
-  config = util.init('unittest')
-
   suites = find_tests()
-  run_tests(suites, config)
+  run_tests(suites)
 
 if __name__ == '__main__':
     run()

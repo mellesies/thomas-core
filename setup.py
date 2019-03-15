@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(
-    name='py-bn',
+    name='pybn',
     version='0.1',
     description='Very simple (almost naive ;) bayesian network implementation',
     url='https://github.com/mellesies/py-bn',

@@ -1,62 +1,98 @@
 # -*- coding: utf-8 -*-
 """Example Bayesian networks."""
 
-from collections import OrderedDict
-
 import numpy as np
 import pandas as pd
 
-from . import Node, BayesianNetwork
+from pybn import Factor, CPT, Node, BayesianNetwork
+
+def subset(full_dict, keys):
+    return {k: full_dict[k] for k in keys}
 
 def get_student_network():
     """Return the Student Bayesian Network."""
 
     # Set the conditional probabilities
     P = dict()
-    I = np.matrix([0.7, 0.3])
-    col_idx = pd.Index(['i0', 'i1'], name='I')
-    P['I'] = pd.DataFrame(I, index=[''], columns=col_idx)
-
-    S_I = np.matrix([[0.95, 0.05], 
-                     [0.20, 0.80]])
-    row_idx = pd.Index(['i0', 'i1'], name='I')
-    col_idx = pd.Index(['s0', 's1'], name='S')
-    P['S|I'] = pd.DataFrame(S_I, index=row_idx, columns=col_idx)
-
-    D = np.matrix([0.6, 0.4])
-    col_idx = pd.Index(['d0', 'd1'], name='D')
-    P['D'] = pd.DataFrame(D, index=[''], columns=col_idx)
-
-    G_DI = np.matrix([[0.30, 0.40, 0.30],
-                      [0.05, 0.25, 0.70],
-                      [0.90, 0.08, 0.02],
-                      [0.50, 0.30, 0.20]])
-    row_idx = pd.MultiIndex.from_product([['i0','i1'], ['d0','d1']], names=['I', 'D'])
-    col_idx = pd.Index(['g1', 'g2', 'g3'], name='G')
-    P['G|D,I'] = pd.DataFrame(G_DI, index=row_idx, columns=col_idx)
-
-    L_G = np.matrix([[0.10, 0.90],
-                     [0.40, 0.60],
-                     [0.99, 0.01]])
-    row_idx = pd.Index(['g1', 'g2', 'g3'], name='G')
-    col_idx = pd.Index(['l0', 'l1'], name='L')
-    P['L|G'] = pd.DataFrame(L_G, index=row_idx, columns=col_idx)
-
-    # Define a node for each distribution
-    nodes = {
-        'I': Node('I', 'Intelligence', P['I']),
-        'D': Node('D', 'Difficulty', P['D']),
-        'G': Node('G', 'Grade', P['G|D,I']),
-        'L': Node('L', 'Letter', P['L|G']),
-        'S': Node('S', 'SAT', P['S|I']),
+    states = {
+        'I': ['i0', 'i1'],
+        'S': ['s0', 's1'],
+        'D': ['d0', 'd1'],
+        'G': ['g1', 'g2','g3'],
+        'L': ['l0', 'l1'],
     }
 
-    # Create edges/relations
-    nodes['I'].add_child(nodes['G'])
-    nodes['I'].add_child(nodes['S'])
-    nodes['D'].add_child(nodes['G'])
-    nodes['G'].add_child(nodes['L'])
+    P['I'] = CPT(
+        [0.7, 0.3], 
+        variable_states=subset(states, ['I'])
+    )
 
-    # Create and return the Bayesian Network
-    return BayesianNetwork('Student', nodes)
+    P['S|I'] = CPT(
+        [0.95, 0.05, 
+         0.20, 0.80], 
+        variable_states=subset(states, ['I', 'S'])
+    )
+
+    P['D'] = CPT(
+        [0.6, 0.4], 
+        variable_states=subset(states, ['D'])
+    )
+
+    P['G|DI'] = CPT(
+        [0.30, 0.40, 0.30, 
+         0.05, 0.25, 0.70, 
+         0.90, 0.08, 0.02, 
+         0.50, 0.30, 0.20],
+        variable_states=subset(states, ['I', 'D', 'G'])
+    )
+
+    P['L|G'] = CPT(
+        [0.10, 0.90,
+         0.40, 0.60,
+         0.99, 0.01],
+        variable_states=subset(states, ['G', 'L'])
+    )
+
+    return BayesianNetwork('Student', P.values())
+
+
+def get_sprinkler_network():
+
+    states = {
+        'A': ['a1', 'a0'],
+        'B': ['b1', 'b0'],
+        'C': ['c1', 'c0'],
+        'D': ['d1', 'd0'],
+        'E': ['e1', 'e0'],
+    }
+
+    # P(A)
+    fA = Factor(
+        [0.6, 0.4], 
+        subset(states, ['A'])
+    )
+
+    # P(B|A)
+    fB_A = Factor(
+        [0.2, 0.8, 0.75, 0.25], 
+        subset(states, ['A', 'B'])
+    )
+
+    # P(C|A)
+    fC_A = Factor(
+        [0.8, 0.2, 0.1, 0.9], 
+        subset(states, ['A', 'C'])
+    )
+
+    # Define a factor that holds the *conditional* distribution P(D|BC)
+    fD_BC = Factor(
+        [0.95, 0.05, 0.9, 0.1,0.8, 0.2, 0.0, 1.0], 
+        subset(states, ['B', 'C', 'D'])
+    )
+
+    # P(E|C)
+    fE_C = Factor(
+        [0.7, 0.3, 0.0, 1.0], 
+        subset(states, ['C', 'E'])
+    )
 
