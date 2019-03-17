@@ -26,6 +26,7 @@ class TestBayesianNetwork(unittest.TestCase):
             self.assertTrue(isinstance(self.Gs.nodes[rv], bn.Node))
 
     def test_priors(self):
+        """Test computation of a BN's prior probabilities for the nodes."""
         D = self.Gs.eliminate(['D']).normalize()
         self.assertAlmostEquals(D['d0'], 0.6)        
         self.assertAlmostEquals(D['d1'], 0.4)
@@ -52,8 +53,38 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEquals(L['l1'], 0.502, places=3)
         self.assertAlmostEquals(L.sum(), 1)
 
+    def test_posteriors(self):
+        """Test computation of a BN's probabilities for the nodes given 
+        evidence.
+        """
+        # P(I=i1|L=l0)
+        I_l0 = self.Gs.eliminate(['I'], {'L': 'l0'}).normalize()
+        self.assertAlmostEquals(I_l0['i1'], 0.140, places=3)
+
+        # P(I=i1|G=g3)
+        I_g3 = self.Gs.eliminate(['I'], {'G': 'g3'}).normalize()
+        self.assertAlmostEquals(I_g3['i1'], 0.079, places=3)
+
+        # P(L=l1|I=i0, D=d0)
+        L_i0d0 = self.Gs.eliminate(['L'], {'I': 'i0', 'D': 'd0'}).normalize()
+        self.assertAlmostEquals(L_i0d0['l1'], 0.513, places=3)
+
+        # P(I=i1|G=g3, S=s1)
+        I_g3s1 = self.Gs.eliminate(['I'], {'G': 'g3', 'S': 's1'}).normalize()
+        self.assertAlmostEquals(I_g3s1['i1'], 0.578, places=3)
+
+        # Since I ⏊ L | G it follows that P(I|G, L=l0) == P(I|G, L=l1)
+        # P(I=i1|G=g3, L=l0)
+        I_g3l0 = self.Gs.eliminate(['I'], {'G': 'g3', 'L': 'l0'}).normalize()
+        self.assertAlmostEquals(I_g3l0['i1'], 0.079, places=3)
+
+        # P(I=i1|G=g3, L=l1)
+        I_g3l1 = self.Gs.eliminate(['I'], {'G': 'g3', 'L': 'l1'}).normalize()
+        self.assertAlmostEquals(I_g3l0['i1'], 0.079, places=3)
+ 
     def test_JPT(self):
-        JPT = self.Gs.eliminate(self.Gs.scope)
-        self.assertAlmostEquals(JPT.sum(), 1)
+        """Test Joint Probability Table."""
+        JPT = self.Gs.eliminate(self.Gs.scope).normalize()
+        self.assertEquals(JPT.sum(), 1)
 
     

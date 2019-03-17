@@ -47,6 +47,9 @@ del version
 def as_list(item):
     if item is None:
         return []
+
+    if isinstance(item, tuple):
+        return list(item)
     
     if not isinstance(item, list):
         return [item]
@@ -143,7 +146,6 @@ class Factor(object):
 
         return result
 
-
     @property
     def name(self):
         names = [n for n in self._data.index.names if n is not None]
@@ -179,6 +181,8 @@ class Factor(object):
 
     def sum_out(self, variable):
         """Sum-out a variable (or list of variables) from the factor.
+
+        This essentially removes a variable from the distribution.
 
         Args:
             variable (str, list): Name or list of names of variables to sum out.
@@ -265,10 +269,9 @@ class Factor(object):
         return self.__class__(self._data / self._data.sum())
 
     def sort_index(self, *args, **kwargs):
-        kwargs.setdefault('inplace', True)
-        self._data.sort_index(*args, **kwargs)
+        return self._data.sort_index(*args, **kwargs)
 
-    def to_series(self):
+    def as_series(self):
         return pd.Series(self._data)
 
 
@@ -334,11 +337,6 @@ class CPT(Factor):
 
         return f'P({conditioned})'
 
-    @property
-    def states(self):
-        """Return a list of states for this random variable."""
-        return list(self._data.columns)
-
     def _repr_html_(self):
         if self.conditioning:
             html = self.unstack()._repr_html_()
@@ -353,6 +351,13 @@ class CPT(Factor):
             </div>
         """
 
+    def reorder_scope(self, order=None):
+        return CPT(
+            super().reorder_scope(order),
+            conditioned_variables=self.conditioned,
+            description = self.description
+        )
+
     def unstack(self, level=None, *args, **kwargs):
         if level is None:
             level = self.conditioned
@@ -365,6 +370,10 @@ class CPT(Factor):
 
         # Hail mary ... ;)
         return self._data.dot(other)
+
+    def as_factor(self):
+        """Return the Factor representation of this CPT."""
+        return Factor(self._data)
 
 # ------------------------------------------------------------------------------
 # Bag: bag of factors
@@ -504,10 +513,6 @@ class Node(CPT):
         """Return the name of the Random Variable for this Node."""
         return self.conditioned[0]
     
-    def is_leaf(self):
-        """Return True iff the Node is a leaf node (i.e. without children)."""
-        pass
-
     
 # ------------------------------------------------------------------------------
 # BayesianNetwork
@@ -540,10 +545,160 @@ class BayesianNetwork(Bag):
         """x[name] <==> x.nodes[name]"""
         return self.nodes[name]
 
-    # def prune(self, Q, e, edges=None, factors=None):
-    #     edges = as_list(edges)
+    def _parse_query_string(self, query_string):
+        """Parse a query string into a tuple of query_dist, query_values,
+        evidence_dist, evidence_values.
 
-    #     if factors is None:
-    #         factors = list(self._factors)
+        The query P(I,G=g1|D,L=l0) would imply:
+            query_dist = ('I',)
+            query_values = {'G': 'g1'}
+            evidence_dist = ('D',)
+            evidence_values = {'L': 'l0'}
+        """
+        def split(s):
+            dist, values = [], {}
+            params = []
 
-    #     leaves = []
+            if s:
+                params = s.split(',')
+
+            for p in params:
+                if '=' in p:
+                    key, value = p.split('=')
+                    values[key] = value
+                else:
+                    dist.append(p)
+
+            return dist, values
+
+        query_str, given_str = query_string, ''
+
+        if '|' in query_str:
+            query_str, given_str = query_string.split('|')
+
+        return split(query_str) + split(given_str)
+
+    def compute_posterior(self, query_dist, query_values, evidence_dist, 
+        evidence_values):
+        """Compute the probability of the query variables given the evidence.
+
+        The query P(I,G=g1|D,L=l0) would imply:
+            query_dist = ['I']
+            query_values = {'G': 'g1'}
+            evidence_dist = ('D',)
+            evidence_values = {'L': 'l0'}
+
+        :param tuple query_dist: Random variable to query
+        :param dict query_values: Random variable values to query
+        :param tuple evidence_dist: Conditioned on evidence
+        :param dict evidence_values: Conditioned on values
+        :return: pandas.Series (possibly with MultiIndex)
+        """
+        # Get a list of *all* variables to query
+        query_vars = query_dist + list(query_values.keys())
+        evidence_vars = evidence_dist + list(evidence_values.keys())
+
+        # First, compute the joint over the query variables and the evidence.
+        # result = self.eliminate(query_vars + evidence_dist, evidence_values)
+        result = self.eliminate(query_vars + evidence_vars)
+        result = result.normalize()
+
+        # print('result: ', result)
+
+        # At this point, result's scope is over all query and evidence variables
+        # If we're computing an entire conditional distribution ...
+        # if evidence_dist:
+        if evidence_vars:
+            try:
+                result = result / result.sum_out(query_vars)
+            except:
+                print('-' * 80)
+                print(f'trying to sum out {query_vars}')
+                print(result)
+                print('-' * 80)
+                raise
+
+        # print('result: ', result)
+
+
+        # If query values were specified we can extract them from the factor.
+        if query_values:
+            levels = list(query_values.keys())
+            values = list(query_values.values())
+
+            if result.width == 1:
+                result = result[values[0]]
+
+            elif result.width > 1:
+                # print(f'values: {values}', f'levels: {levels}')
+                # print(result)
+                indices = []
+
+                for level, value in query_values.items():
+                    # print('-' * 80)
+                    # print(level, value)
+                    # print('-' * 80)
+                    idx = result._data.index.get_level_values(level) == value
+                    indices.append(list(idx))
+
+                # result = Factor(result._data.xs(values, level=levels))
+
+                zipped = list(zip(*indices))
+                idx = [all(x) for x in zipped]
+                result = Factor(result._data[idx])
+                # print('indices: ', indices)
+                # print('zipped:', zipped)
+                # print('idx: ', idx)
+                # print('result: ', result)
+                # print('-' * 80)
+
+
+        if evidence_values:
+            indices = []
+
+            for level, value in evidence_values.items():
+                idx = result._data.index.get_level_values(level) == value
+                indices.append(list(idx))
+                # print('-' * 80)
+                # print(level, value)
+                # print('-' * 80)
+
+            zipped = list(zip(*indices))
+            idx = [all(x) for x in zipped]
+            # print('indices: ', indices)
+            # print('zipped:', zipped)
+            # print('idx: ', idx)
+            # print('-' * 80)
+            result = Factor(result._data[idx])
+
+        if isinstance(result, Factor):
+            order = list(evidence_vars) + list(query_vars)
+            result = result.reorder_scope(order)
+            result.sort_index()
+            return CPT(result, conditioned_variables=query_vars)
+
+        return result
+
+    def P(self, query_string):
+        """Return the probability as queried by query_string.
+
+        P('I,G=g1|D,L=l0') is equivalent to calling compute_posterior with:
+            query_dist = ('I',)
+            query_values = {'G': 'g1'}
+            evidence_dist = ('D',)
+            evidence_values = {'L': 'l0'}
+        """
+        qd, qv, gd, gv = self._parse_query_string(query_string)
+        return self.compute_posterior(qd, qv, gd, gv)
+
+    def prune(self, Q, e):
+        """Prune the graph."""
+        edges = list(self.edges)
+        factors = list(self._factors)
+
+        should_continue_pruning = False
+
+        while should_continue_pruning:
+            pass
+
+        return super().prune(Q, e)

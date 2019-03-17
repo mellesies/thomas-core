@@ -56,8 +56,8 @@ def get_student_network():
     return BayesianNetwork('Student', P.values())
 
 
-def get_sprinkler_network():
-
+def get_sprinkler_factors():
+    """Return the factors for the Sprinkler Bayesian Network."""
     states = {
         'A': ['a1', 'a0'],
         'B': ['b1', 'b0'],
@@ -96,3 +96,9 @@ def get_sprinkler_network():
         subset(states, ['C', 'E'])
     )
 
+    return [fA, fB_A, fC_A, fD_BC, fE_C]
+
+def get_sprinkler_network():
+    """Return the Sprinkler Bayesian Network."""
+    factors = get_sprinkler_factors()
+    return BayesianNetwork('Sprinkler', factors)
