@@ -15,17 +15,22 @@ import pybn as bn
 Gs = bn.examples.get_student_network()
 
 # This should output the prior probability of random variable 'S' (SAT score).
-Gs.P('S')
-# S
+print(Gs.P('S'))
+
+# Expected output:
+# P(S)
 # s0    0.725
 # s1    0.275
 # dtype: float64
 
 # Query for the conditional probability of S given the student is intelligent.
-Gs.P('S|I=i1')
-# S
-# s0    0.2
-# s1    0.8
+print(Gs.P('S|I=i1'))
+
+# Expected output:
+# P(S|I)
+# I   S 
+# i1  s0    0.2
+#     s1    0.8
 # dtype: float64
 ```
 
