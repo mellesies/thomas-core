@@ -24,18 +24,21 @@ def get_student_network():
 
     P['I'] = CPT(
         [0.7, 0.3], 
-        variable_states=subset(states, ['I'])
+        variable_states=subset(states, ['I']),
+        description='Intelligence'
     )
 
     P['S|I'] = CPT(
         [0.95, 0.05, 
          0.20, 0.80], 
-        variable_states=subset(states, ['I', 'S'])
-    )
+        variable_states=subset(states, ['I', 'S']),
+        description='SAT Score'
+)
 
     P['D'] = CPT(
         [0.6, 0.4], 
-        variable_states=subset(states, ['D'])
+        variable_states=subset(states, ['D']),
+        description='Difficulty'
     )
 
     P['G|DI'] = CPT(
@@ -43,14 +46,16 @@ def get_student_network():
          0.05, 0.25, 0.70, 
          0.90, 0.08, 0.02, 
          0.50, 0.30, 0.20],
-        variable_states=subset(states, ['I', 'D', 'G'])
+        variable_states=subset(states, ['I', 'D', 'G']),
+        description='Grade'
     )
 
     P['L|G'] = CPT(
         [0.10, 0.90,
          0.40, 0.60,
          0.99, 0.01],
-        variable_states=subset(states, ['G', 'L'])
+        variable_states=subset(states, ['G', 'L']),
+        description='Letter'
     )
 
     return BayesianNetwork('Student', P.values())

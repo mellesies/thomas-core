@@ -14,6 +14,8 @@ import pandas as pd
 from pandas.core.dtypes.dtypes import CategoricalDtype
 from functools import reduce
 
+import json
+
 from . import error as e
 
 def find_last_modified_script():
@@ -100,7 +102,7 @@ class Factor(object):
 
     def __repr__(self):
         """repr(f) <==> f.__repr__()"""
-        return f'{self.name}\n{repr(self._data)}'
+        return f'{self.display_name}\n{repr(self._data)}'
 
     def __mul__(self, other):
         """A * B <=> A.mul(B)"""
@@ -111,6 +113,7 @@ class Factor(object):
         return self.div(other)
 
     def __getitem__(self, *args, **kwargs):
+        """A[x] <==> A.__getitem__(x)"""
         return self._data.__getitem__(*args, **kwargs)
 
     def sum(self):
@@ -121,7 +124,7 @@ class Factor(object):
         """A * B <=> A.mul(B)"""
         if (isinstance(other, Factor) 
                 and not self.overlaps_with(other)
-                and self.name != other.name):
+                and self.display_name != other.display_name):
             return self.outer(other)
 
         return Factor(self._data.mul(other._data, *args, **kwargs))
@@ -134,20 +137,17 @@ class Factor(object):
         return Factor(self._data.div(other))
 
     def overlaps_with(self, other):
+        """Return True iff the scope of this Factor overlaps with the scope of
+        other.
+        """
         own_scope = set(self.scope)
         other_scope = set(other.scope)
         result = len(own_scope.intersection(other_scope)) > 0
 
-        # print('-' * 80)
-        # print('own_scope:', own_scope)
-        # print('other_scope:', other_scope)
-        # print('result:', result)
-        # print('-' * 80)
-
         return result
 
     @property
-    def name(self):
+    def display_name(self):
         names = [n for n in self._data.index.names if n is not None]
         names = ','.join(names)
 
@@ -165,6 +165,16 @@ class Factor(object):
     def width(self):
         """Return the width of this factor."""
         return len(self.scope)
+
+    @property
+    def variable_states(self):
+        """Return a dict of variable states."""
+        index = self._data.index
+
+        if isinstance(index, pd.MultiIndex):
+            return {i.name: list(i) for i in index.levels}
+
+        return {index.name: list(index)}
 
     def reorder_scope(self, order=None):
         """Reorder the variables in the scope."""
@@ -222,6 +232,7 @@ class Factor(object):
         return self._data.unstack(*args, **kwargs)
 
     def dot(self, other):
+        """Return the dot (matrix) product."""
         if isinstance(other, Factor):
             return self._data.dot(other._data)
 
@@ -229,6 +240,7 @@ class Factor(object):
         return self._data.dot(other)
 
     def outer(self, other):
+        """Return the outer product."""
         df = pd.DataFrame(
             np.outer(self._data, other._data),
             index=self._data.index, 
@@ -250,7 +262,7 @@ class Factor(object):
     def set_evidence(self, **kwargs):
         """Return a reduced factor."""
 
-        # when called like zero(D='d1', E='e0'), we'll need to 
+        # when called like set_evidence(D='d1', E='e0'), we'll need to 
         # set rows that do not correspond to the evidence to zero.
 
         # Find the (subset of) evidence that's related to this factor's scope.
@@ -269,10 +281,33 @@ class Factor(object):
         return self.__class__(self._data / self._data.sum())
 
     def sort_index(self, *args, **kwargs):
-        return self._data.sort_index(*args, **kwargs)
+        """Sort the index of the Factor."""
+        return Factor(self._data.sort_index(*args, **kwargs))
 
     def as_series(self):
+        """Return the Factor as a pandas.Series."""
         return pd.Series(self._data)
+
+    def as_dict(self):
+        """Return a dict representation of this Factor."""
+        data = self._data
+
+        if self.width > 1:
+            data = data.reorder_levels(self.scope)
+
+        # data = data.sort_index()
+
+        return {
+            'type': 'Factor',
+            'scope': self.scope,
+            'variable_states': self.variable_states,
+            'data': data.to_list(),
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        """Return a Factor initialized by its dict representation."""
+        return Factor(d['data'], d['variable_states'])
 
 
 # ------------------------------------------------------------------------------
@@ -301,43 +336,47 @@ class CPT(Factor):
         else:
             super().__init__(data, variable_states)
 
-        self.description = description
-
-        # Each name in the index corresponds to a random variable.
-        variables = self.scope
-
-        # We'll assume the last variable of the index is being conditioned if
-        # not explicitly specified.
+        # Each name in the index corresponds to a random variable. We'll assume
+        # the last variable of the index is being conditioned if not explicitly
+        # specified.
         if conditioned_variables is None:
-            conditioned_variables = [variables[-1]]
+            conditioned = [self.scope[-1]]
+        else:
+            conditioned = conditioned_variables
 
         # The remaining variables must be the conditioning variables
-        conditioning_variables = [i for i in variables if i not in conditioned_variables]
+        conditioning = [i for i in self.scope if i not in conditioned]
 
-        self.conditioned = conditioned_variables
-        self.conditioning = conditioning_variables
+        # Make sure the conditioned variable appears rightmost in the index.
+        if self.width > 1:
+            order = conditioning + conditioned
+            self._data = self._data.reorder_levels(order)
 
-    @property
-    def shortname(self):
+        # Sort the index
+        self._data = self._data.sort_index()
+
+        # Set remaining attributes
+        self.conditioned = conditioned
+        self.conditioning = conditioning
+        self.description = description
+
+    def short_query_str(self, separator='|'):
+        """Return a short version of the query string."""
         conditioned = ''.join(self.conditioned)
         conditioning = ''.join(self.conditioning)
 
         if conditioning:
-            return f'{conditioned}_{conditioning}'
+            return f'{conditioned}{separator}{conditioning}'
     
         return f'{conditioned}'
-        
+       
     @property
-    def name(self):
-        conditioned = ','.join(self.conditioned)
-        conditioning = ','.join(self.conditioning)
-
-        if conditioning:
-            return f'P({conditioned}|{conditioning})'
-
-        return f'P({conditioned})'
+    def display_name(self):
+        """Return a short version of the query string."""
+        return f'P({self.short_query_str()})'
 
     def _repr_html_(self):
+        """Return an HTML representation of this CPT."""
         if self.conditioning:
             html = self.unstack()._repr_html_()
         else:
@@ -346,7 +385,10 @@ class CPT(Factor):
 
         return f"""
             <div>
-                <div style='margin-top:6px'><b>{self.name}</b></div>
+                <div style='margin-top:6px'>
+                    <span><b>{self.display_name}</b></span>
+                    <span style="font-style: italic;">{self.description}</span>
+                </div>
                 {html}
             </div>
         """
@@ -375,6 +417,71 @@ class CPT(Factor):
         """Return the Factor representation of this CPT."""
         return Factor(self._data)
 
+    def as_dict(self):
+        """Return a dict representation of this CPT."""
+        d = super().as_dict()
+        d.update({
+            'type': 'CPT',
+            'description': self.description,
+            'conditioned': self.conditioned,
+            'conditioning': self.conditioning
+        })
+
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        """Return a CPT initialized by its dict representation."""
+        factor = super().from_dict(d)
+        return CPT(
+            factor, 
+            conditioned_variables=d.get('conditioned'),
+            description=d.get('description')
+        )
+
+
+# ------------------------------------------------------------------------------
+# Node
+# ------------------------------------------------------------------------------
+class Node(CPT):
+    
+    def __init__(self, cpt, name='', description=''):
+        """Initialize a new Node."""
+        if isinstance(cpt, (Factor, pd.Series)) and not isinstance(cpt, CPT):
+            cpt = CPT(cpt, description=description)
+
+        # First, do a sanity check and ensure that the CPTs has no more then
+        # a single conditioned variable
+        error_msg = f'CPT should only have a single conditioned variable!'        
+        assert len(cpt.conditioned) == 1, error_msg
+
+        # Call the super constructor
+        super().__init__(cpt, description=cpt.description or description)
+
+        # Initialize variables
+        self.name = name
+
+    @property
+    def RV(self):
+        """Return the name of the Random Variable for this Node."""
+        return self.conditioned[0]
+
+    def as_dict(self):
+        """Return a dict representation of this Node."""
+        d = super().as_dict()
+        d.update({
+            'type': 'Node',
+            'name': self.name,
+        })
+        return d
+
+    @classmethod
+    def from_dict(cls, d):
+        """Return a Node initialized by its dict representation."""
+        cpt = super().from_dict(d)
+        return Node(cpt)
+    
+
 # ------------------------------------------------------------------------------
 # Bag: bag of factors
 # ------------------------------------------------------------------------------
@@ -383,6 +490,7 @@ class Bag(object):
 
     def __init__(self, name='', factors=None):
         """Instantiate a new Bag."""
+        self.name = name
         self._factors = factors
 
     @property
@@ -489,31 +597,14 @@ class Bag(object):
 
         return result
 
+    def as_dict(self):
+        """Return a dict representation of this Bag."""
+        return {
+            'type': 'Bag',
+            'name': self.name,
+            'factors': [f.as_dict() for f in self._factors]
+        }
 
-# ------------------------------------------------------------------------------
-# Node
-# ------------------------------------------------------------------------------
-class Node(CPT):
-    
-    def __init__(self, cpt):
-        """Initialize a new Node."""
-        if isinstance(cpt, (Factor, pd.Series)):
-            cpt = CPT(cpt)
-
-        # First, do a sanity check and ensure that the CPTs has no more then
-        # a single conditioned variable
-        error_msg = f'CPT should only have a single conditioned variable!'        
-        assert len(cpt.conditioned) == 1, error_msg
-
-        # Call the super constructor
-        super().__init__(cpt)
-
-    @property
-    def RV(self):
-        """Return the name of the Random Variable for this Node."""
-        return self.conditioned[0]
-    
-    
 # ------------------------------------------------------------------------------
 # BayesianNetwork
 # ------------------------------------------------------------------------------
@@ -595,8 +686,8 @@ class BayesianNetwork(Bag):
         :return: pandas.Series (possibly with MultiIndex)
         """
         # Get a list of *all* variables to query
-        query_vars = query_dist + list(query_values.keys())
-        evidence_vars = evidence_dist + list(evidence_values.keys())
+        query_vars = list(query_values.keys()) + query_dist
+        evidence_vars = list(evidence_values.keys()) + evidence_dist
 
         # First, compute the joint over the query variables and the evidence.
         # result = self.eliminate(query_vars + evidence_dist, evidence_values)
@@ -693,6 +784,8 @@ class BayesianNetwork(Bag):
 
     def prune(self, Q, e):
         """Prune the graph."""
+
+        # TODO: implement!
         edges = list(self.edges)
         factors = list(self._factors)
 
@@ -702,3 +795,44 @@ class BayesianNetwork(Bag):
             pass
 
         return super().prune(Q, e)
+
+    def as_dict(self):
+        """Return a dict representation of this Bayesian Network."""
+        return {
+            'type': 'BayesianNetwork',
+            'name': self.name,
+            'edges': self.edges,
+            'nodes': [n.as_dict() for n in self._factors]
+        }
+
+    def as_json(self, pretty=False):
+        """Return a JSON representation (str) of this Bayesian Network."""
+        if pretty:
+            indent = 4
+        else:
+            indent = None
+
+        return json.dumps(self.as_dict(), indent=indent)
+
+    def save(self, filename):
+        with open(filename, 'w') as fp:
+            fp.write(self.as_json(True))
+
+    @classmethod
+    def from_dict(self, d):
+        """Return a Bayesian Network initialized by its dict representation."""
+        name = d.get('name')
+        nodes = [Node.from_dict(n) for n in d['nodes']]
+        return BayesianNetwork(name, nodes)
+
+    @classmethod
+    def from_json(cls, json_str):
+        """Return a Bayesian Network initialized by its JSON representation."""
+        d = json.loads(json_str)
+        return cls.from_dict(d)
+
+    @classmethod
+    def open(cls, filename):
+        with open(filename) as fp:
+            data = fp.read()
+            return cls.from_json(data)

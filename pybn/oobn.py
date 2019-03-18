@@ -161,7 +161,7 @@ def _parse(filename):
     with open(filename, 'r') as fp:
         oobn_data = fp.read()
 
-    parser = lark.Lark(GRAMMAR, start='oobn_class')
+    parser = lark.Lark(GRAMMAR, parser='lalr', start='oobn_class')
     tree = parser.parse(oobn_data)
     
     return tree

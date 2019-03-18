@@ -17,6 +17,7 @@ class TestBayesianNetwork(unittest.TestCase):
     
     def setUp(self):
         self.Gs = bn.examples.get_student_network()
+        self.maxDiff = None
 
     def test_basic_setup(self):
         random_vars = ['D', 'I', 'G', 'S', 'L']
@@ -82,9 +83,13 @@ class TestBayesianNetwork(unittest.TestCase):
         I_g3l1 = self.Gs.eliminate(['I'], {'G': 'g3', 'L': 'l1'}).normalize()
         self.assertAlmostEquals(I_g3l0['i1'], 0.079, places=3)
  
+    def test_serialization(self):
+        serialized = self.Gs.as_dict()
+        unserialized = bn.BayesianNetwork.from_dict(serialized)
+
+        self.assertDictEqual(serialized, unserialized.as_dict())
+
     def test_JPT(self):
         """Test Joint Probability Table."""
         JPT = self.Gs.eliminate(self.Gs.scope).normalize()
         self.assertEquals(JPT.sum(), 1)
-
-    
