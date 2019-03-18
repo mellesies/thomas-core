@@ -1,0 +1,268 @@
+# -*- coding: utf-8 -*-
+"""Factor: the basis for all reasoning."""
+import os
+from datetime import datetime as dt
+
+from collections import OrderedDict
+
+import numpy as np
+import pandas as pd
+from pandas.core.dtypes.dtypes import CategoricalDtype
+from functools import reduce
+
+import json
+
+from .. import error as e
+
+
+# ------------------------------------------------------------------------------
+# Factor
+# ------------------------------------------------------------------------------
+class Factor(object):
+    """Factor."""
+
+    def __init__(self, data, variable_states=None):
+        """Initialize a new Factor.
+
+        Args:
+            data (list, pandas.Series): array of values.
+            variable_states (dict): list of allowed states for each random 
+                variable, indexed by name. If variable_states is None, `data` 
+                should be a pandas.Series with a proper Index/MultiIndex.
+        """
+        if variable_states and len(variable_states) == 1:
+            variable_states = list(variable_states.items())
+            var_name, var_states = variable_states[0]
+            idx = pd.Index(var_states, name=var_name)
+
+        elif variable_states and len(variable_states) > 1:
+            idx = pd.MultiIndex.from_product(
+                variable_states.values(), 
+                names=variable_states.keys()
+            )
+
+        elif (isinstance(data, pd.Series) 
+                and isinstance(data.index, (pd.Index, pd.MultiIndex))):
+            data = data.copy()
+            idx = None
+
+        else:
+            msg =  'data should either be a pandas.Series *with* a proper'
+            msg += ' index or variable_states should be provided.'
+            print('Oh dear: ', type(data), type(data.index))
+            print('variable_states: ', variable_states)
+            raise Exception(msg)
+
+        self._data = pd.Series(data, index=idx)
+        # self._data.name = self.name
+
+    def __repr__(self):
+        """repr(f) <==> f.__repr__()"""
+        return f'{self.display_name}\n{repr(self._data)}'
+
+    def __mul__(self, other):
+        """A * B <=> A.mul(B)"""
+        return self.mul(other)
+
+    def __truediv__(self, other):
+        """A / B <=> A.div(B)"""
+        return self.div(other)
+
+    def __getitem__(self, *args, **kwargs):
+        """A[x] <==> A.__getitem__(x)"""
+        return self._data.__getitem__(*args, **kwargs)
+
+    def sum(self):
+        """Sum all values of the factor."""
+        return self._data.sum()
+
+    def mul(self, other, *args, **kwargs):
+        """A * B <=> A.mul(B)"""
+        if (isinstance(other, Factor) 
+                and not self.overlaps_with(other)
+                and self.display_name != other.display_name):
+            return self.outer(other)
+
+        return Factor(self._data.mul(other._data, *args, **kwargs))
+
+    def div(self, other, *args, **kwargs):
+        """A / B <=> A.mul(B)"""
+        if isinstance(other, Factor):
+            return Factor(self._data.div(other._data, *args, **kwargs))
+
+        return Factor(self._data.div(other))
+
+    def overlaps_with(self, other):
+        """Return True iff the scope of this Factor overlaps with the scope of
+        other.
+        """
+        own_scope = set(self.scope)
+        other_scope = set(other.scope)
+        result = len(own_scope.intersection(other_scope)) > 0
+
+        return result
+
+    @property
+    def display_name(self):
+        names = [n for n in self._data.index.names if n is not None]
+        names = ','.join(names)
+
+        if not names:
+            names = '?'
+
+        return f'factor({names})'
+
+    @property
+    def scope(self):
+        """Return the scope of this factor."""
+        return [v for v in self._data.index.names]
+
+    @property
+    def width(self):
+        """Return the width of this factor."""
+        return len(self.scope)
+
+    @property
+    def variable_states(self):
+        """Return a dict of variable states."""
+        index = self._data.index
+
+        if isinstance(index, pd.MultiIndex):
+            return {i.name: list(i) for i in index.levels}
+
+        return {index.name: list(index)}
+
+    def reorder_scope(self, order=None):
+        """Reorder the variables in the scope."""
+        if self.width > 1:
+            if order is None:
+                order = self.scope
+                order.sort()
+
+            data = self._data.reorder_levels(order)
+        else:
+            data = self._data.copy()
+
+        return Factor(data)
+
+    def sum_out(self, variable):
+        """Sum-out a variable (or list of variables) from the factor.
+
+        This essentially removes a variable from the distribution.
+
+        Args:
+            variable (str, list): Name or list of names of variables to sum out.
+
+        Returns:
+            Factor: factor with the specified variable removed.
+        """
+        if isinstance(variable, (str, tuple)):
+            variable_set = set([variable])
+        else:
+            variable_set = set(variable)
+
+        scope = set(self.scope)
+
+        if not variable_set.issubset(scope):
+            raise e.NotInScopeError(variable_set, scope)
+
+        # Two ways to do this, not sure which one is faster ...
+        unstacked = self._data.unstack(variable)
+        summed = unstacked.sum(axis=1)
+
+        # if isinstance(variable, str):
+        #     variable = [variable]
+        # variable = set(variable)
+        # names = set(self.index.names)
+        # summed = self.sum(level=list(names - variable))
+        # summed.name = 'P({})'.format(','.join(summed.index.names))
+
+        return Factor(summed)
+
+    def stack(self, *args, **kwargs):
+        """Proxy for pd.Series.stack()."""
+        return self._data.stack(*args, **kwargs)
+
+    def unstack(self, *args, **kwargs):
+        """Proxy for pd.Series.unstack()."""
+        return self._data.unstack(*args, **kwargs)
+
+    def dot(self, other):
+        """Return the dot (matrix) product."""
+        if isinstance(other, Factor):
+            return self._data.dot(other._data)
+
+        # Hail mary ... ;)
+        return self._data.dot(other)
+
+    def outer(self, other):
+        """Return the outer product."""
+        df = pd.DataFrame(
+            np.outer(self._data, other._data),
+            index=self._data.index, 
+            columns=other._data.index
+        )
+
+        stacked = df.stack().squeeze()
+
+        try:
+            f = Factor(stacked)
+        except:
+            print('Could not create Factor from outer product?')
+            print(type(stacked))
+            print(stacked)
+            raise
+
+        return f
+
+    def set_evidence(self, **kwargs):
+        """Return a reduced factor."""
+
+        # when called like set_evidence(D='d1', E='e0'), we'll need to 
+        # set rows that do not correspond to the evidence to zero.
+
+        # Find the (subset of) evidence that's related to this factor's scope.
+        levels = [l for l in kwargs.keys() if l in self.scope]
+        data = self._data.copy()
+
+        for l in levels:
+            value = kwargs[l]
+            idx = data.index.get_level_values(l) != value
+            data[idx] = 0
+
+        return Factor(data)
+
+    def normalize(self):
+        """Normalize the factor so the sum of all values is 1."""
+        return self.__class__(self._data / self._data.sum())
+
+    def sort_index(self, *args, **kwargs):
+        """Sort the index of the Factor."""
+        return Factor(self._data.sort_index(*args, **kwargs))
+
+    def as_series(self):
+        """Return the Factor as a pandas.Series."""
+        return pd.Series(self._data)
+
+    def as_dict(self):
+        """Return a dict representation of this Factor."""
+        data = self._data
+
+        if self.width > 1:
+            data = data.reorder_levels(self.scope)
+
+        # data = data.sort_index()
+
+        return {
+            'type': 'Factor',
+            'scope': self.scope,
+            'variable_states': self.variable_states,
+            'data': data.to_list(),
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        """Return a Factor initialized by its dict representation."""
+        return Factor(d['data'], d['variable_states'])
+
+
