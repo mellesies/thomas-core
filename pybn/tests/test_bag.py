@@ -49,4 +49,17 @@ class TestBag(unittest.TestCase):
         self.assertAlmostEquals(fAC['a0', 'c1'], 0.04, places=2)
         self.assertAlmostEquals(fAC['a1', 'c0'], 0.12, places=2)
         self.assertAlmostEquals(fAC['a1', 'c1'], 0.48, places=2)
-        self.assertAlmostEquals(fAC.sum(), 1, places=8)        
+        self.assertAlmostEquals(fAC.sum(), 1, places=8)
+
+
+    def test_variable_elimination_with_evidence(self):
+        """Test the variable elimination algorithm."""
+        factors = pybn.examples.get_sprinkler_factors()        
+        bag = bn.Bag('Sprinkler', factors)
+
+        # Compute the (unnormalized) factor over C and A=a1
+        fC_a1 = bag.eliminate(['C'], {'A': 'a1'})
+
+        self.assertAlmostEquals(fC_a1['c0'], 0.12, places=2)
+        self.assertAlmostEquals(fC_a1['c1'], 0.48, places=2)
+

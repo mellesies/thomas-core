@@ -7,6 +7,7 @@ import pandas as pd
 from pybn import Factor, CPT, Node, BayesianNetwork
 
 def subset(full_dict, keys):
+    """Return a subset of a dict."""
     return {k: full_dict[k] for k in keys}
 
 def get_student_network():
@@ -28,12 +29,12 @@ def get_student_network():
         description='Intelligence'
     )
 
-    P['S|I'] = CPT(
+    P['S'] = CPT(
         [0.95, 0.05, 
          0.20, 0.80], 
         variable_states=subset(states, ['I', 'S']),
         description='SAT Score'
-)
+    )
 
     P['D'] = CPT(
         [0.6, 0.4], 
@@ -41,7 +42,7 @@ def get_student_network():
         description='Difficulty'
     )
 
-    P['G|DI'] = CPT(
+    P['G'] = CPT(
         [0.30, 0.40, 0.30, 
          0.05, 0.25, 0.70, 
          0.90, 0.08, 0.02, 
@@ -50,7 +51,7 @@ def get_student_network():
         description='Grade'
     )
 
-    P['L|G'] = CPT(
+    P['L'] = CPT(
         [0.10, 0.90,
          0.40, 0.60,
          0.99, 0.01],
@@ -58,7 +59,8 @@ def get_student_network():
         description='Letter'
     )
 
-    return BayesianNetwork('Student', P.values())
+    nodes = [Node(name, cpt) for name, cpt in P.items()]
+    return BayesianNetwork('Student', nodes)
 
 
 def get_sprinkler_factors():

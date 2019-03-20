@@ -12,6 +12,7 @@ from functools import reduce
 
 import json
 
+import pybn
 from ..factors.factor import Factor
 from ..factors.cpt import CPT
 from ..factors.node import Node
@@ -28,6 +29,9 @@ class Bag(object):
         """Instantiate a new Bag."""
         self.name = name
         self._factors = factors
+
+    def __repr__(self):
+        return f"<Bag: '{self.name}'>"
 
     @property
     def scope(self):
@@ -49,7 +53,8 @@ class Bag(object):
 
     def eliminate(self, Q, e=None, debug=False):
         """Perform variable elimination."""        
-        if e is None: e = {} 
+        if e is None: e = {}
+        e = pybn.add_prefix_to_dict(e)
 
         def mul(x1, x2): 
             """Helper function for functools.reduce()."""
@@ -70,6 +75,20 @@ class Bag(object):
             result = result.reorder_scope()
             return result
 
+        def mul_debug(x1, x2):
+            print('-' * 80)
+            print("I got chiiiiils, they're multiplying")
+            print('-' * 80)
+            print(f'x1: {x1.scope}')
+            print(x1)
+            print('-' * 80)
+            print(f'x2: {x2.scope}')
+            print(x2)
+            print('-' * 80)
+            print()
+            return mul(x1,x2)
+
+
         # Initialize the list of factors to the pruned set. self.prune() should
         # be implemented by subclasses with more knowledge of the structure
         factors = self.prune(Q, e)
@@ -83,6 +102,7 @@ class Bag(object):
 
         if debug:
             print('-' * 80)
+            print(f'Q: {Q}')
             print(f'ordering: {ordering}')
 
         # Iterate over the variables in the ordering.
@@ -92,8 +112,11 @@ class Bag(object):
 
             if debug:
                 print('-' * 80)
+                print('LOOP')
                 print(f'X: {X}')
-                print('related_factors:', [f.name for f in related_factors])
+                print('related_factors:')
+                for f in related_factors:
+                    print(f'  - {f.scope}')
 
             # Multiply all related factors with each other and sum out 'X'
             try:
@@ -122,13 +145,30 @@ class Bag(object):
 
         if debug:
             print('-' * 80)
-            print('factors after main loop:', [f.name for f in factors])
+            print('FINAL')
+            print('factors after main loop:')
             for f in factors:
-                print(f)
-                print()
+                print(f'  - {f.scope}')
 
-        result = reduce(mul, factors)
-        result = result.reorder_scope(Q)
+            print('-' * 80)
+            # return factors
+
+        if debug:
+            result = reduce(mul_debug, factors)
+            print('result.scope:', result.scope)
+            print('-' * 80)
+        else:
+            result = reduce(mul, factors)
+
+        try:
+            result = result.reorder_scope(Q)
+        except:
+            print('exception while reordering scope')
+            print('Q:', Q)
+            print('result.scope:', result.scope)
+            print('result:', result)
+            raise
+
         result.sort_index()
 
         return result

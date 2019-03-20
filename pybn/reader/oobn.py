@@ -242,7 +242,7 @@ def _create_bn(structure):
         if None in cpt.index.names:
             cpt.index = cpt.index.droplevel()
 
-        nodes.append(pybn.Node(cpt))
+        nodes.append(pybn.Node(name, cpt))
 
     # for name, node_properties in structure['nodes'].items():
     #     for parent in node_properties['parents']:

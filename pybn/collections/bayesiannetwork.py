@@ -12,6 +12,7 @@ from functools import reduce
 
 import json
 
+import pybn as bn
 from ..factors.factor import Factor
 from ..factors.cpt import CPT
 from ..factors.node import Node
@@ -35,10 +36,13 @@ class BayesianNetwork(Bag):
       variables to be the parents of the conditioned variable.
     """
 
-    def __init__(self, name='', nodes=None):
-        """Instantiate a new BayesianNetwork."""
-        # Make sure nodes actually contains nodes
-        nodes = [Node(n) for n in nodes]
+    def __init__(self, name, nodes):
+        """Instantiate a new BayesianNetwork.
+
+        Args:
+            name (str): Name of the Bayesian Network.
+            nodes (list): List of Nodes.
+        """
         super().__init__(name, nodes)
 
         self.nodes = {n.RV: n for n in self._factors}
@@ -51,6 +55,9 @@ class BayesianNetwork(Bag):
     def __getitem__(self, name):
         """x[name] <==> x.nodes[name]"""
         return self.nodes[name]
+
+    def __repr__(self):
+        return f"<BayesianNetwork: '{self.name}'>"
 
     def _parse_query_string(self, query_string):
         """Parse a query string into a tuple of query_dist, query_values,
@@ -85,8 +92,22 @@ class BayesianNetwork(Bag):
 
         return split(query_str) + split(given_str)
 
+    def prune(self, Q, e):
+        """Prune the graph."""
+
+        # TODO: implement!
+        edges = list(self.edges)
+        factors = list(self._factors)
+
+        should_continue_pruning = False
+
+        while should_continue_pruning:
+            pass
+
+        return super().prune(Q, e)
+
     def compute_posterior(self, query_dist, query_values, evidence_dist, 
-        evidence_values):
+        evidence_values, **kwargs):
         """Compute the probability of the query variables given the evidence.
 
         The query P(I,G=g1|D,L=l0) would imply:
@@ -101,16 +122,17 @@ class BayesianNetwork(Bag):
         :param dict evidence_values: Conditioned on values
         :return: pandas.Series (possibly with MultiIndex)
         """
+        query_values = bn.add_prefix_to_dict(query_values)
+        evidence_values = bn.add_prefix_to_dict(evidence_values)
+
         # Get a list of *all* variables to query
         query_vars = list(query_values.keys()) + query_dist
         evidence_vars = list(evidence_values.keys()) + evidence_dist
 
         # First, compute the joint over the query variables and the evidence.
         # result = self.eliminate(query_vars + evidence_dist, evidence_values)
-        result = self.eliminate(query_vars + evidence_vars)
+        result = self.eliminate(query_vars + evidence_vars, **kwargs)
         result = result.normalize()
-
-        # print('result: ', result)
 
         # At this point, result's scope is over all query and evidence variables
         # If we're computing an entire conditional distribution ...
@@ -124,9 +146,6 @@ class BayesianNetwork(Bag):
                 print(result)
                 print('-' * 80)
                 raise
-
-        # print('result: ', result)
-
 
         # If query values were specified we can extract them from the factor.
         if query_values:
@@ -185,6 +204,17 @@ class BayesianNetwork(Bag):
             return CPT(result, conditioned_variables=query_vars)
 
         return result
+
+    def MAP(self, query_dist, evidence_values, include_probability=True):
+        """Perform a Maximum a Posteriori query."""
+        d = self.compute_posterior(query_dist, {}, [], evidence_values)
+        evidence_vars = list(evidence_values.keys())
+        d = d._data.droplevel(evidence_vars)
+
+        if include_probability:
+            return d.idxmax(), d.max()
+
+        return d.idxmax()
 
     def P(self, query_string):
         """Return the probability as queried by query_string.

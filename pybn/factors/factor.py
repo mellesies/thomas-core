@@ -12,6 +12,7 @@ from functools import reduce
 
 import json
 
+import pybn
 from .. import error as e
 
 
@@ -25,40 +26,42 @@ class Factor(object):
         """Initialize a new Factor.
 
         Args:
-            data (list, pandas.Series): array of values.
+            data (list, pandas.Series, Factor): array of values.
             variable_states (dict): list of allowed states for each random 
                 variable, indexed by name. If variable_states is None, `data` 
                 should be a pandas.Series with a proper Index/MultiIndex.
         """
-        if variable_states and len(variable_states) == 1:
-            variable_states = list(variable_states.items())
-            var_name, var_states = variable_states[0]
-            idx = pd.Index(var_states, name=var_name)
+        if variable_states:
+            # Create a (Multi)Index from the variable states.
+            idx = self._index_from_variable_states(variable_states)
 
-        elif variable_states and len(variable_states) > 1:
-            idx = pd.MultiIndex.from_product(
-                variable_states.values(), 
-                names=variable_states.keys()
-            )
+            # Prefix the states of the variables to make them unique.
+            # {'I': ['i0', 'i1']} --> {'I': ['I.i0', 'I.i1']}
+            idx = pybn.add_prefix_to_index(idx)
 
         elif (isinstance(data, pd.Series) 
-                and isinstance(data.index, (pd.Index, pd.MultiIndex))):
-            data = data.copy()
-            idx = None
+            and isinstance(data.index, (pd.Index, pd.MultiIndex))):
+                # TODO: should we make sure that the index is prefixed?
+                data = data.copy()
+                idx = data.index
+
+        elif isinstance(data, Factor):
+            data = data._data.copy()
+            idx = data._data.idx
 
         else:
             msg =  'data should either be a pandas.Series *with* a proper'
             msg += ' index or variable_states should be provided.'
-            print('Oh dear: ', type(data), type(data.index))
+            print('Oh dear: ', type(data))
             print('variable_states: ', variable_states)
             raise Exception(msg)
 
+        # Set self._data
         self._data = pd.Series(data, index=idx)
-        # self._data.name = self.name
 
     def __repr__(self):
         """repr(f) <==> f.__repr__()"""
-        return f'{self.display_name}\n{repr(self._data)}'
+        return f'{self.display_name}\n{repr(self._data_without_prefix)}'
 
     def __mul__(self, other):
         """A * B <=> A.mul(B)"""
@@ -68,9 +71,69 @@ class Factor(object):
         """A / B <=> A.div(B)"""
         return self.div(other)
 
-    def __getitem__(self, *args, **kwargs):
+    def __getitem__(self, key):
         """A[x] <==> A.__getitem__(x)"""
-        return self._data.__getitem__(*args, **kwargs)
+        scope = self.scope
+
+        if isinstance(key, str):
+            key = f'{scope[0]}.{key}'
+
+        elif isinstance(key, tuple):
+            prefixed = []
+            for i, k in enumerate(key):
+               prefixed.append(f'{scope[i]}.{k}')
+
+            key = tuple(prefixed)
+
+        result = self._data.__getitem__(key)
+
+        if isinstance(result, pd.Series):
+            return Factor(result)
+
+        return result
+
+    @classmethod
+    def _index_from_variable_states(cls, variable_states):
+        """Create an pandas.Index or pandas.MultiIndex from a dictionary."""
+        if len(variable_states) == 1:
+            # Cast type dict_items to a list so we can use indexes
+            variable_states = list(variable_states.items())
+
+            # The first and only item is a tuple
+            var_name, var_states = variable_states[0]
+
+            # Create a pandas.Index
+            idx = pd.Index(var_states, name=var_name)
+
+        else:
+            idx = pd.MultiIndex.from_product(
+                variable_states.values(), 
+                names=variable_states.keys()
+            )
+
+        return idx
+
+    @property
+    def _data_without_prefix(self):
+        """Return a copy of the underlying data where the states have *not* been
+            prefixed with the random variable's name.
+        """
+        data = self._data.copy()
+
+        if isinstance(data.index, pd.MultiIndex):
+            idx = data.index.remove_unused_levels()
+        else:
+            idx = data.index
+
+        try:
+            idx = pybn.remove_prefix_from_index(idx)
+            data.index = idx
+            return data
+        except Exception as e:
+            print()
+            print('Exception:', e)
+            print(idx)
+            raise
 
     def sum(self):
         """Sum all values of the factor."""
@@ -125,12 +188,9 @@ class Factor(object):
     @property
     def variable_states(self):
         """Return a dict of variable states."""
+        # FIXME: this should probabily return the un-prefixed states?
         index = self._data.index
-
-        if isinstance(index, pd.MultiIndex):
-            return {i.name: list(i) for i in index.levels}
-
-        return {index.name: list(index)}
+        return pybn.index_to_dict(index)
 
     def reorder_scope(self, order=None):
         """Reorder the variables in the scope."""
@@ -185,15 +245,16 @@ class Factor(object):
 
     def unstack(self, *args, **kwargs):
         """Proxy for pd.Series.unstack()."""
+        # FIXME: unstack leaks index prefixes ... 
         return self._data.unstack(*args, **kwargs)
 
     def dot(self, other):
         """Return the dot (matrix) product."""
         if isinstance(other, Factor):
-            return self._data.dot(other._data)
+            return Factor(self._data.dot(other._data))
 
         # Hail mary ... ;)
-        return self._data.dot(other)
+        return Factor(self._data.dot(other))
 
     def outer(self, other):
         """Return the outer product."""
@@ -251,12 +312,14 @@ class Factor(object):
         if self.width > 1:
             data = data.reorder_levels(self.scope)
 
-        # data = data.sort_index()
+        # Remove any prefixes ... 
+        idx = pybn.remove_prefix_from_index(data.index)
+        variable_states = pybn.index_to_dict(idx)
 
         return {
             'type': 'Factor',
             'scope': self.scope,
-            'variable_states': self.variable_states,
+            'variable_states': variable_states,
             'data': data.to_list(),
         }
 

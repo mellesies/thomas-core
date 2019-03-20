@@ -11,9 +11,11 @@ setup(
     author_email='m.sieswerda@iknl.nl',
     license='Apache 2.0',
     packages=['pybn'],
+    python_requires='>= 3.6',
     install_requires=[
         'numpy',
         'pandas',
+        'lark-parser',
     ],
     zip_safe=False,
     test_suite='nose.collector',

@@ -23,18 +23,29 @@ from .. import error as e
 class Node(CPT):
     """Node in a Bayesian Network."""
     
-    def __init__(self, cpt, name='', description=''):
-        """Initialize a new Node."""
-        if isinstance(cpt, (Factor, pd.Series)) and not isinstance(cpt, CPT):
-            cpt = CPT(cpt, description=description)
+    def __init__(self, name, cpt, description=''):
+        """Initialize a new Node.
 
-        # First, do a sanity check and ensure that the CPTs has no more then
-        # a single conditioned variable
-        error_msg = f'CPT should only have a single conditioned variable!'        
-        assert len(cpt.conditioned) == 1, error_msg
+        Args:
+            name (str): Name of the Node
+            cpt (CPT, Factor, pandas.Series): CPT for this node. Can be one of
+                CPT, Factor or pandas.Series. Factor or Series require an 
+                appropriately set Index/MultiIndex.
+        """
+        if isinstance(cpt, CPT):
+            # Do a sanity check and ensure that the CPTs has no more then a
+            # single conditioned variable. This is only useful if cpt is an
+            # actual CPT: for Factor/Series the last level in the index 
+            # will be assumed to be the conditioned variable.
+            error_msg = f'CPT should only have a single conditioned variable!'        
+            assert len(cpt.conditioned) == 1, error_msg
+
+            # Borrow the description from the CPT if not provided.
+            if description == '':
+                description = cpt.description
 
         # Call the super constructor
-        super().__init__(cpt, description=cpt.description or description)
+        super().__init__(cpt, description=description)
 
         # Initialize variables
         self.name = name
@@ -56,6 +67,8 @@ class Node(CPT):
     @classmethod
     def from_dict(cls, d):
         """Return a Node initialized by its dict representation."""
+        name = d['name']
         cpt = super().from_dict(d)
-        return Node(cpt)
+        description = d['description']
+        return Node(name, cpt, description)
     

@@ -84,6 +84,7 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEquals(I_g3l0['i1'], 0.079, places=3)
  
     def test_serialization(self):
+        """Test serialization to and loading from dictionary."""
         serialized = self.Gs.as_dict()
         unserialized = bn.BayesianNetwork.from_dict(serialized)
 

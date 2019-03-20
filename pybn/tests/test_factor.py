@@ -32,7 +32,6 @@ class TestFactor(unittest.TestCase):
 
         self.assertAlmostEquals(fAB.sum(), 1, places=8)
 
-
     def test_summing_out(self):
         """Test summing out variables."""
         # Get the Factors for the Sprinkler network

@@ -50,3 +50,79 @@ __version__ = find_last_modified_script()[1]
 del version
 
 
+def _process_prefix_index(idx, add_or_remove):
+    """Add/remove prefixes to/from an Index or MultiIndex."""
+    if not isinstance(idx, (pd.Index, pd.MultiIndex)):
+        raise TypeError('index should be pandas.Index or pandas.MultiIndex')
+
+    if isinstance(idx, pd.MultiIndex):
+        # processed_states will keep track of a list of tuples:
+        #   [('i0', ), ('d0', 'd1')]
+        processed_states = []
+
+        # MultiIndex.from_product requires names to be iterable, so we'll need
+        # to cast it anyway.
+        names = list(idx.names)
+
+        # idx.levels[i] only takes integers as index, so we'll have to enumerate
+        for i, name in enumerate(names):
+            prefix = name + '.'
+
+            # MultiIndex keeps its levels sorted, so the order we're seeing in
+            # idx.levels[i] is not necessarily the order that was originally 
+            # defined. We'll use idx.codes later to set this right.
+            if add_or_remove == 'add':
+                new_states = [prefix + s for s in idx.levels[i]]
+            else:
+                new_states = [s.replace(prefix, '') for s in idx.levels[i]]
+
+            processed_states.append(new_states)
+
+
+        # Creating a new MultiIndex from product uses the order as specified
+        # in the tuples. Since this may not have been the original order, we'll
+        # need to set this straight by calling `new_idx.set_codes()`.
+        new_idx = pd.MultiIndex.from_product(processed_states, names=names)
+        new_idx = new_idx.set_codes(idx.codes)
+        return new_idx
+
+    # Regular Index
+    prefix = idx.name + '.'
+
+    if add_or_remove == 'add':
+        new_states = [prefix + state for state in idx]
+    else:
+        new_states = [state.replace(prefix, '') for state in idx]
+
+    # For some reason the regular Index does not sort its states/levels, so
+    # there's no need to call `set_codes()`.
+    return pd.Index(new_states, name=idx.name)
+
+def add_prefix_to_index(idx):
+    """Add prefixes to an Index or MultiIndex."""
+    return _process_prefix_index(idx, 'add')
+
+def add_prefix_to_dict(variable_states):
+    """Add prefixes to dict with states."""
+    prefixed = {}
+
+    for name, states in variable_states.items():
+        if isinstance(states, str):
+            prefixed[name] = f'{name}.{states}'
+        else:
+            prefixed[name] = [f'{name}.{state}' for state in states]
+
+    return prefixed
+
+def remove_prefix_from_index(idx):
+    """Remove any prefixes from a dict with variable states."""
+    return _process_prefix_index(idx, 'remove')
+
+def index_to_dict(idx):
+    if isinstance(idx, pd.MultiIndex):
+        return {i.name: list(i) for i in idx.levels}
+
+    return {idx.name: list(idx)}
+
+
+

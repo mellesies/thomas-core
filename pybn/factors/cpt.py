@@ -33,7 +33,12 @@ class CPT(Factor):
         """Initialize a new CPT.
 
         Args:
-            data (list, pandas.Series): array of values.
+            data (list, pandas.Series, Factor): array of values.
+            conditioned_variables (list): list of conditioned variables
+            variable_states (dict): list of allowed states for each random 
+                variable, indexed by name. If variable_states is None, `data` 
+                should be a pandas.Series (or Factor) with a proper 
+                Index/MultiIndex.
             description (str): An optional description of the random variables' 
                 meaning.
         """
@@ -66,15 +71,25 @@ class CPT(Factor):
         self.conditioning = conditioning
         self.description = description
 
-    def short_query_str(self, separator='|'):
-        """Return a short version of the query string."""
-        conditioned = ''.join(self.conditioned)
-        conditioning = ''.join(self.conditioning)
+    @classmethod
+    def _short_query_str(cls, sep1, sep2, conditioned, conditioning):
+        """Return a short query string."""
+        conditioned = sep1.join(conditioned)
+        conditioning = sep1.join(conditioning)
 
         if conditioning:
-            return f'{conditioned}{separator}{conditioning}'
+            return f'{conditioned}{sep2}{conditioning}'
     
         return f'{conditioned}'
+
+    def short_query_str(self, sep1=',', sep2='|'):
+        """Return a short version of the query string."""
+        return self._short_query_str(
+            sep1,
+            sep2, 
+            self.conditioned, 
+            self.conditioning
+        )
        
     @property
     def display_name(self):
@@ -83,10 +98,12 @@ class CPT(Factor):
 
     def _repr_html_(self):
         """Return an HTML representation of this CPT."""
+        data = self._data_without_prefix
+
         if self.conditioning:
-            html = self.unstack()._repr_html_()
+            html = data.unstack(self.conditioned)._repr_html_()
         else:
-            df = pd.DataFrame(self._data, columns=['']).transpose()
+            df = pd.DataFrame(data, columns=['']).transpose()
             html = df._repr_html_()
 
         return f"""
@@ -139,6 +156,7 @@ class CPT(Factor):
     def from_dict(cls, d):
         """Return a CPT initialized by its dict representation."""
         factor = super().from_dict(d)
+
         return CPT(
             factor, 
             conditioned_variables=d.get('conditioned'),
