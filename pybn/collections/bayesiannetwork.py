@@ -149,6 +149,9 @@ class BayesianNetwork(Bag):
         :return: pandas.Series (possibly with MultiIndex)
         """
         query_values = bn.add_prefix_to_dict(query_values)
+
+        # evidence_values = {k:v for k,v in evidence_values.items() if isinstance(v, str)}
+        evidence_values = bn.remove_none_values_from_dict(evidence_values)
         evidence_values = bn.add_prefix_to_dict(evidence_values)
 
         # Get a list of *all* variables to query
@@ -234,8 +237,9 @@ class BayesianNetwork(Bag):
     def MAP(self, query_dist, evidence_values, include_probability=True):
         """Perform a Maximum a Posteriori query."""
         d = self.compute_posterior(query_dist, {}, [], evidence_values)
-        evidence_vars = list(evidence_values.keys())
-        d = d._data.droplevel(evidence_vars)
+        evidence_vars = [e for  e in evidence_values.keys() if e in d.scope]
+
+        d = d.droplevel(evidence_vars)
 
         if include_probability:
             return d.idxmax(), d.max()
@@ -294,3 +298,4 @@ class BayesianNetwork(Bag):
         with open(filename) as fp:
             data = fp.read()
             return cls.from_json(data)
+

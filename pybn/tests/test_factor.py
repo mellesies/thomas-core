@@ -15,6 +15,32 @@ log = logging.getLogger(__name__)
 
 class TestFactor(unittest.TestCase):
     
+    def test_state_order(self):
+        """Test that a Factor's (Multi)Index keeps its states in order.
+
+            Regression test for GitHub issue #1.
+        """
+        # P(A)
+        fA = bn.Factor(
+            [0.6, 0.4], 
+            {'A': ['a1', 'a0']}
+        )
+
+        self.assertEquals(fA['a1'], 0.6)
+        self.assertEquals(fA['a0'], 0.4)
+
+        # P(B|A)
+        fB_A = bn.Factor(
+            [0.2, 0.8, 0.75, 0.25], 
+            {'A': ['a1', 'a0'],'B': ['b1', 'b0']}
+        )
+
+        self.assertEquals(fB_A['a1', 'b1'], 0.20)
+        self.assertEquals(fB_A['a1', 'b0'], 0.80)
+        self.assertEquals(fB_A['a0', 'b1'], 0.75)
+        self.assertEquals(fB_A['a0', 'b0'], 0.25)
+
+
     def test_multiplication(self):
         """Test factor multiplication."""
         # Get the Factors for the Sprinkler network

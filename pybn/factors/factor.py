@@ -47,7 +47,7 @@ class Factor(object):
 
         elif isinstance(data, Factor):
             data = data._data.copy()
-            idx = data._data.idx
+            idx = data._data.index
 
         else:
             msg =  'data should either be a pandas.Series *with* a proper'
@@ -134,6 +134,14 @@ class Factor(object):
             print('Exception:', e)
             print(idx)
             raise
+
+    def max(self):
+        """Proxy for pandas.Series.max()"""
+        return self._data_without_prefix.max()
+
+    def idxmax(self):
+        """Proxy for pandas.Series.idmax()"""
+        return self._data_without_prefix.idxmax()
 
     def sum(self):
         """Sum all values of the factor."""
@@ -275,6 +283,10 @@ class Factor(object):
             raise
 
         return f
+
+    def droplevel(self, level):
+        """Proxy for pandas.Series.droplevel()"""
+        return Factor(self._data.droplevel(level))
 
     def set_evidence(self, **kwargs):
         """Return a reduced factor."""

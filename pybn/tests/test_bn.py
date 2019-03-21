@@ -92,5 +92,5 @@ class TestBayesianNetwork(unittest.TestCase):
 
     def test_JPT(self):
         """Test Joint Probability Table."""
-        JPT = self.Gs.eliminate(self.Gs.scope).normalize()
+        JPT = self.Gs.eliminate(list(self.Gs.scope)).normalize()
         self.assertEquals(JPT.sum(), 1)

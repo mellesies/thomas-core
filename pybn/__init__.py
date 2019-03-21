@@ -124,5 +124,10 @@ def index_to_dict(idx):
 
     return {idx.name: list(idx)}
 
+def remove_from_dict_by_value(dict_, value):
+    return {k:v for k,v in evidence_values.items() if v == value}
 
-
+def remove_none_values_from_dict(dict_):
+    """func() should return True for entries to keep."""
+    t = lambda x: (x is not None) and (isinstance(x, float) and not np.isnan(x))
+    return {k:v for k,v in dict_.items() if t(v)}
