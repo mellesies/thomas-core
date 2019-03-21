@@ -95,16 +95,42 @@ class BayesianNetwork(Bag):
     def prune(self, Q, e):
         """Prune the graph."""
 
-        # TODO: implement!
+        # For our purposes, it doesn't matter if a variable is query or evidene.
+        vars_to_keep = set(Q + list(e.keys()))
+
+        # Copy the list of edges
         edges = list(self.edges)
-        factors = list(self._factors)
 
-        should_continue_pruning = False
+        while True:
+            # Using zip transforms a list of tuples:
+            # [('I', 'S'), ('I', 'G')] --> [('I', 'I'), ('S', 'G')]
+            parents, children = list(zip(*edges))
+            parents, children = set(parents), set(children)
 
-        while should_continue_pruning:
-            pass
+            # Nodes in 'children' that are not in 'parents' are leaves!
+            leaves = children - parents
 
-        return super().prune(Q, e)
+            # Leaves that can be pruned, should not be in 'vars_to_keep'
+            prunable = leaves - vars_to_keep
+
+            # Filter out edges that can be pruned
+            edges = [(p, c) for (p, c) in edges if c not in prunable]
+
+            # Stop if there was nothing to remove during this iteration
+            if (len(prunable) == 0) or (len(edges) == 0):
+                break
+
+        # Its possible that we've removed *all* edges, for instance if Q
+        # only contains a parent node.
+        if edges:
+            parents, children = list(zip(*edges))
+        else:
+            parents, children = [], []
+
+        nodes = vars_to_keep.union(set(parents + children))        
+        factors = [f for f in self._factors if f.RV in nodes]
+
+        return factors
 
     def compute_posterior(self, query_dist, query_values, evidence_dist, 
         evidence_values, **kwargs):
@@ -227,20 +253,6 @@ class BayesianNetwork(Bag):
         """
         qd, qv, gd, gv = self._parse_query_string(query_string)
         return self.compute_posterior(qd, qv, gd, gv)
-
-    def prune(self, Q, e):
-        """Prune the graph."""
-
-        # TODO: implement!
-        edges = list(self.edges)
-        factors = list(self._factors)
-
-        should_continue_pruning = False
-
-        while should_continue_pruning:
-            pass
-
-        return super().prune(Q, e)
 
     def as_dict(self):
         """Return a dict representation of this Bayesian Network."""

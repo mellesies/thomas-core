@@ -33,19 +33,24 @@ class Bag(object):
     def __repr__(self):
         return f"<Bag: '{self.name}'>"
 
+    def _scope(self, factors):
+        """Return the scope of a set of factors."""
+        scope = []
+
+        for f in factors:
+            scope += f.scope
+
+        return set(scope)
+
     @property
     def scope(self):
         """Return the network scope."""
-        network_scope = []
+        return self._scope(self._factors)
 
-        for f in self._factors:
-            network_scope += f.scope
-
-        return set(network_scope)
-
-    def find_elimination_ordering(self, Q):
+    def find_elimination_ordering(self, Q, factors):
         """Return a variable ordering for a set of factors."""
-        return [v for v in self.scope if v not in Q]
+        scope = self._scope(factors)
+        return [v for v in scope if v not in Q]
 
     def prune(self, Q, e):
         """Dummy implementation to be overridden by subclasses."""
@@ -58,6 +63,19 @@ class Bag(object):
 
         def mul(x1, x2): 
             """Helper function for functools.reduce()."""
+
+            if debug:
+                print('-' * 80)
+                print("I got chiiiiils, they're multiplying")
+                print('-' * 80)
+                print(f'x1: {x1.scope}')
+                print(x1)
+                print('-' * 80)
+                print(f'x2: {x2.scope}')
+                print(x2)
+                print('-' * 80)
+                print()
+
             x1 = x1.reorder_scope()
             x2 = x2.reorder_scope()
 
@@ -75,20 +93,6 @@ class Bag(object):
             result = result.reorder_scope()
             return result
 
-        def mul_debug(x1, x2):
-            print('-' * 80)
-            print("I got chiiiiils, they're multiplying")
-            print('-' * 80)
-            print(f'x1: {x1.scope}')
-            print(x1)
-            print('-' * 80)
-            print(f'x2: {x2.scope}')
-            print(x2)
-            print('-' * 80)
-            print()
-            return mul(x1,x2)
-
-
         # Initialize the list of factors to the pruned set. self.prune() should
         # be implemented by subclasses with more knowledge of the structure
         factors = self.prune(Q, e)
@@ -98,12 +102,13 @@ class Bag(object):
 
         # ordering will contain a list of variables *not* in Q, i.e. the 
         # remaining variables from the full distribution.
-        ordering = self.find_elimination_ordering(Q)
+        ordering = self.find_elimination_ordering(Q, factors)
 
         if debug:
             print('-' * 80)
             print(f'Q: {Q}')
             print(f'ordering: {ordering}')
+            print('factors', [f.display_name for f in factors])
 
         # Iterate over the variables in the ordering.
         for X in ordering:
@@ -125,11 +130,6 @@ class Bag(object):
             except Exception as e:
                 print()
                 print('Could not reduce list of factors!?')
-                # for f in related_factors:
-                #     print(f'--- {f.name} ---')
-                #     print(e)
-                #     print(f)
-                #     print()
 
                 if (debug):
                     return related_factors
@@ -151,14 +151,12 @@ class Bag(object):
                 print(f'  - {f.scope}')
 
             print('-' * 80)
-            # return factors
+
+        result = reduce(mul, factors)
 
         if debug:
-            result = reduce(mul_debug, factors)
             print('result.scope:', result.scope)
             print('-' * 80)
-        else:
-            result = reduce(mul, factors)
 
         try:
             result = result.reorder_scope(Q)
