@@ -82,7 +82,48 @@ class TestBayesianNetwork(unittest.TestCase):
         # P(I=i1|G=g3, L=l1)
         I_g3l1 = self.Gs.eliminate(['I'], {'G': 'g3', 'L': 'l1'}).normalize()
         self.assertAlmostEquals(I_g3l0['i1'], 0.079, places=3)
- 
+
+    def test_compute_posterior(self):
+        """Test the function BayesianNetwork.compute_posterior()."""
+        I = self.Gs.compute_posterior(['I'], {}, [], {})
+        self.assertAlmostEquals(I['i0'], 0.7, places=3)
+        self.assertAlmostEquals(I['i1'], 0.3, places=3)
+
+        S_i1 = self.Gs.compute_posterior(['S'], {}, [], {'I': 'i1'})
+        self.assertAlmostEquals(S_i1['s0'], 0.2, places=3)
+        self.assertAlmostEquals(S_i1['s1'], 0.8, places=3)
+
+        S_i0 = self.Gs.compute_posterior(['S'], {}, [], {'I': 'i0'})
+        self.assertAlmostEquals(S_i0['s0'], 0.95, places=3)
+        self.assertAlmostEquals(S_i0['s1'], 0.05, places=3)
+
+    def test_MAP(self):
+        """Test the BayesianNetwork.MAP() function."""
+        argmax_I = self.Gs.MAP(['I'], {}, False)
+        self.assertEquals(argmax_I, 'i0')
+
+        argmax_G = self.Gs.MAP(['G'], {}, False)
+        self.assertEquals(argmax_G, 'g1')
+
+        argmax_G = self.Gs.MAP(['G'], {}, True)
+        self.assertEquals(argmax_G[0], 'g1')
+        self.assertAlmostEquals(argmax_G[1], 0.362)
+
+    def test_P(self):
+        """Test the function BayesianNetwork.P()."""
+        I = self.Gs.P('I')
+        self.assertAlmostEquals(I['i0'], 0.7, places=3)
+        self.assertAlmostEquals(I['i1'], 0.3, places=3)
+
+        G_I = self.Gs.P('G|I')
+        self.assertEquals(G_I.scope, ['I', 'G'])
+        self.assertEquals(G_I.conditioned, ['G'])
+        self.assertEquals(G_I.conditioning, ['I'])
+
+        I_g1 = self.Gs.P('I|G=g1')
+        self.assertAlmostEquals(I_g1['i0'], 0.387, places=3)
+        self.assertAlmostEquals(I_g1['i1'], 0.613, places=3)
+
     def test_serialization(self):
         """Test serialization to and loading from dictionary."""
         serialized = self.Gs.as_dict()

@@ -17,7 +17,7 @@ from ..factors.factor import Factor
 from ..factors.cpt import CPT
 from ..factors.node import Node
 
-from .. import error as e
+from .. import error
 
 # ------------------------------------------------------------------------------
 # Bag: bag of factors
@@ -63,6 +63,8 @@ class Bag(object):
 
         def mul(x1, x2): 
             """Helper function for functools.reduce()."""
+            # x1 = x1.reorder_scope()
+            # x2 = x2.reorder_scope()
 
             if debug:
                 print('-' * 80)
@@ -73,22 +75,28 @@ class Bag(object):
                 print('-' * 80)
                 print(f'x2: {x2.scope}')
                 print(x2)
-                print('-' * 80)
                 print()
-
-            x1 = x1.reorder_scope()
-            x2 = x2.reorder_scope()
 
             try:
                 result = (x1 * x2)
-            except: 
+            except Exception as e: 
+                print('-' * 80)
+                print(e)
                 print('-' * 80)
                 print('could not multiply two factors')
-                print(f'x1: {x1.name}: {x1.scope}')
-                print(f'x2: {x2.name}: {x2.scope}')
+                print(f'x1: {x1.display_name}: {x1.scope}')
+                print(x1)
                 print('-' * 80)
+                print(f'x2: {x2.display_name}: {x2.scope}')
+                print(x2)
                 print()
                 raise
+
+            if debug:
+                print('result:', result.scope)
+                print(result)
+                print('-' * 80)
+                print()
 
             result = result.reorder_scope()
             return result
@@ -98,7 +106,11 @@ class Bag(object):
         factors = self.prune(Q, e)
 
         # Apply the evidence to the pruned set.
-        factors = [f.set_evidence(**e) for f in factors]
+        try:
+            factors = [f.set_evidence(**e) for f in factors]
+        except error.InvalidStateError as e:
+            # Actually, don't deal with this here ... 
+            raise
 
         # ordering will contain a list of variables *not* in Q, i.e. the 
         # remaining variables from the full distribution.
@@ -108,7 +120,7 @@ class Bag(object):
             print('-' * 80)
             print(f'Q: {Q}')
             print(f'ordering: {ordering}')
-            print('factors', [f.display_name for f in factors])
+            print('all factors:', [f.display_name for f in factors])
 
         # Iterate over the variables in the ordering.
         for X in ordering:
@@ -119,9 +131,15 @@ class Bag(object):
                 print('-' * 80)
                 print('LOOP')
                 print(f'X: {X}')
+                print('factors:')
+                for f in factors:
+                    print('-' * 10)
+                    print(f)
+                print('-' * 40)
                 print('related_factors:')
                 for f in related_factors:
-                    print(f'  - {f.scope}')
+                    print('-' * 10)
+                    print(f)
 
             # Multiply all related factors with each other and sum out 'X'
             try:

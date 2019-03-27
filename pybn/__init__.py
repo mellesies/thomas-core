@@ -107,10 +107,14 @@ def add_prefix_to_dict(variable_states):
     prefixed = {}
 
     for name, states in variable_states.items():
+        prefix = f'{name}.'
         if isinstance(states, str):
-            prefixed[name] = f'{name}.{states}'
+            if states.startswith(prefix):
+                prefixed[name] = f'{states}'
+            else:                
+                prefixed[name] = f'{prefix}{states}'
         else:
-            prefixed[name] = [f'{name}.{state}' for state in states]
+            prefixed[name] = [f'{prefix}{s}' if not s.startswith(prefix) else s for s in states]
 
     return prefixed
 
@@ -129,5 +133,6 @@ def remove_from_dict_by_value(dict_, value):
 
 def remove_none_values_from_dict(dict_):
     """func() should return True for entries to keep."""
-    t = lambda x: (x is not None) and (isinstance(x, float) and not np.isnan(x))
-    return {k:v for k,v in dict_.items() if t(v)}
+    t = lambda x: (x is None) or (isinstance(x, float) and np.isnan(x))
+    result = {k:v for k,v in dict_.items() if not t(v)}
+    return result

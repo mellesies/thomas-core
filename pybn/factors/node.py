@@ -51,6 +51,15 @@ class Node(CPT):
         self.name = name
 
     @property
+    def states(self):
+        index = self._data_without_prefix.index
+
+        if self.width == 1:
+            return index.tolist()
+
+        return index.levels[-1].tolist()
+
+    @property
     def RV(self):
         """Return the name of the Random Variable for this Node."""
         return self.conditioned[0]

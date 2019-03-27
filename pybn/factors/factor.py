@@ -92,6 +92,20 @@ class Factor(object):
 
         return result
 
+    def __len__(self):
+        """len(f) == f.__len__()"""
+        return len(self._data)
+
+    @property
+    def index(self):
+        """Return the Factor index (without prefixes)."""
+        return self._data_without_prefix.index
+    
+    @property
+    def values(self):
+        """Return the factor values as an np.array"""
+        return self._data.values
+    
     @classmethod
     def _index_from_variable_states(cls, variable_states):
         """Create an pandas.Index or pandas.MultiIndex from a dictionary."""
@@ -149,12 +163,45 @@ class Factor(object):
 
     def mul(self, other, *args, **kwargs):
         """A * B <=> A.mul(B)"""
-        if (isinstance(other, Factor) 
-                and not self.overlaps_with(other)
+        if isinstance(other, Factor):
+            if (not self.overlaps_with(other)
                 and self.display_name != other.display_name):
-            return self.outer(other)
+                return self.outer(other)
 
-        return Factor(self._data.mul(other._data, *args, **kwargs))
+            # Other is a factor with overlap with `self`
+            other = other.reorder_scope()
+
+        # Safety precaution. Really only necessary when multiplying a Series or
+        # another Factor.
+        me = self.reorder_scope()
+
+        if len(me) == 1 and len(other) == 1:
+            # Pandas has the nasty habit to mess up multiindexes when 
+            # multiplying two Series with a single row. At that point, order
+            # suddenly becomes important (i.e. s1 * s2 != s2 * s1) and the index
+            # of the first Series is reused. The code below is to make sure
+            # that all levels of the index are copied to the end result.
+            multiplied = me._data.mul(other._data, *args, **kwargs)
+            i1, i2 = multiplied.index, other._data.index
+            names = [n for n in i2.names if n not in i1.names]
+
+            if not names:
+                # Apparently all levels of the index made it to the result. 
+                # We're done.
+                return Factor(multiplied)
+
+            # Apparently we're missing one or more indices. We know that we're
+            # dealing with an index for a single row, so we can safely get the
+            # first item from the level values
+            keys = [i2.get_level_values(n)[0] for n in names]
+
+            # We're creating an index for a single row: tuple(keys) is the 
+            # actual index.
+            keys = [tuple(keys)]
+            concatted = pd.concat([multiplied], keys=keys, names=names)
+            return Factor(concatted)
+
+        return Factor(me._data.mul(other._data, *args, **kwargs))
 
     def div(self, other, *args, **kwargs):
         """A / B <=> A.mul(B)"""
@@ -196,8 +243,7 @@ class Factor(object):
     @property
     def variable_states(self):
         """Return a dict of variable states."""
-        # FIXME: this should probabily return the un-prefixed states?
-        index = self._data.index
+        index = self._data_without_prefix.index
         return pybn.index_to_dict(index)
 
     def reorder_scope(self, order=None):
@@ -234,16 +280,12 @@ class Factor(object):
         if not variable_set.issubset(scope):
             raise e.NotInScopeError(variable_set, scope)
 
-        # Two ways to do this, not sure which one is faster ...
+        if len(variable_set) == self.width:
+            return self.sum()
+
+        # Unstack the requested variables into columns and sum over them.
         unstacked = self._data.unstack(variable)
         summed = unstacked.sum(axis=1)
-
-        # if isinstance(variable, str):
-        #     variable = [variable]
-        # variable = set(variable)
-        # names = set(self.index.names)
-        # summed = self.sum(level=list(names - variable))
-        # summed.name = 'P({})'.format(','.join(summed.index.names))
 
         return Factor(summed)
 
@@ -272,14 +314,18 @@ class Factor(object):
             columns=other._data.index
         )
 
-        stacked = df.stack().squeeze()
+        if isinstance(df.columns, pd.MultiIndex):
+            levels = df.columns.levels
+            stacked = df.stack(list(range(len(levels)))).squeeze()
+        else:
+            stacked = df.stack().squeeze()
 
         try:
             f = Factor(stacked)
         except:
             print('Could not create Factor from outer product?')
-            print(type(stacked))
-            print(stacked)
+            print('type(stacked):', type(stacked))
+            print('stacked:', stacked)
             raise
 
         return f
@@ -294,16 +340,28 @@ class Factor(object):
         # when called like set_evidence(D='d1', E='e0'), we'll need to 
         # set rows that do not correspond to the evidence to zero.
 
+        kwargs = pybn.add_prefix_to_dict(kwargs)
+
         # Find the (subset of) evidence that's related to this factor's scope.
         levels = [l for l in kwargs.keys() if l in self.scope]
         data = self._data.copy()
 
         for l in levels:
             value = kwargs[l]
-            idx = data.index.get_level_values(l) != value
-            data[idx] = 0
 
-        return Factor(data)
+            if value not in data.index.get_level_values(l):
+                value = value.replace(f'{l}.', '')
+                raise e.InvalidStateError(l, value, self)
+
+            idx = data.index.get_level_values(l) != value
+            data[idx] = np.nan
+
+        # data = data.dropna()
+        #        
+        # if len(data) == 0:
+        #     raise Exception('this is weird!?')
+
+        return Factor(data.dropna())
 
     def normalize(self):
         """Normalize the factor so the sum of all values is 1."""

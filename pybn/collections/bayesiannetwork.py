@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Factor: the basis for all reasoning."""
-import os
+import sys, os
 from datetime import datetime as dt
 
+import itertools
 from collections import OrderedDict
 
 import numpy as np
@@ -19,7 +20,7 @@ from ..factors.node import Node
 
 from .bag import Bag
 
-from .. import error as e
+from .. import error
 
 
 # ------------------------------------------------------------------------------
@@ -57,7 +58,13 @@ class BayesianNetwork(Bag):
         return self.nodes[name]
 
     def __repr__(self):
-        return f"<BayesianNetwork: '{self.name}'>"
+        s = f"<BayesianNetwork name='{self.name}'>\n"
+        for n in self._factors:
+            s += f"  <Node name='{n.name}' />\n"
+
+        s += '</BayesianNetwork>'
+
+        return s
 
     def _parse_query_string(self, query_string):
         """Parse a query string into a tuple of query_dist, query_values,
@@ -91,6 +98,59 @@ class BayesianNetwork(Bag):
             query_str, given_str = query_string.split('|')
 
         return split(query_str) + split(given_str)
+
+    def _complete_case(self, case):
+        """..."""
+        missing = list(case[case.isna()].index)
+        evidence = [e for e in case.index if e not in missing]
+
+        try:
+            jpt = self.compute_posterior(
+                missing,
+                {},
+                [],
+                evidence_values=case.to_dict()
+            )
+        except error.InvalidStateError as e:
+            print('WARNING - Could not complete case:', e)
+            return np.NaN
+
+        # Creata a dataframe by repeating the evicence multiple times
+        imputated = pd.DataFrame([case[evidence]] * len(jpt), index=jpt.index)
+
+        # The combinations of missing variables are in the index. Reset the
+        # index to make them part of the dataframe.
+        imputated = imputated.reset_index()
+
+        # Add the computed probabilities as weights
+        imputated.loc[:, 'weight'] = jpt.values
+
+        return imputated
+
+    def _complete_cases(self, incomplete_cases):
+        # Create a dataframe that holds *all* unique cases. This way we can
+        # complete these cases once and then just count their frequency.
+
+        # drop_duplicates() will work fine with NaNs
+        unique_cases = incomplete_cases.drop_duplicates().reset_index(drop=True)
+
+        # apply() yields a Series where each entry holds a DataFrame.
+        dfs = unique_cases.apply(self._complete_case, axis=1)
+        dfs = dfs.dropna()
+
+        # Add an index to the newly created Series.
+        # While set_index() also works with NaNs, but selecting from the index
+        # becomes horribly difficult. 
+        cols = unique_cases.columns.tolist()
+        unique_cases = unique_cases.fillna('NaN')
+        dfs.index = unique_cases.set_index(cols).index
+
+        # We can compute the unique cases' counts
+        # Also, groupby() doesn't work with NaNs ... 
+        incomplete_cases = incomplete_cases.fillna('NaN')
+        counts = incomplete_cases.groupby(cols).size()
+
+        return dfs, counts
 
     def prune(self, Q, e):
         """Prune the graph."""
@@ -159,13 +219,21 @@ class BayesianNetwork(Bag):
         evidence_vars = list(evidence_values.keys()) + evidence_dist
 
         # First, compute the joint over the query variables and the evidence.
-        # result = self.eliminate(query_vars + evidence_dist, evidence_values)
-        result = self.eliminate(query_vars + evidence_vars, **kwargs)
-        result = result.normalize()
+        try:
+            # result = self.eliminate(query_vars, evidence_values, **kwargs)
+            result = self.eliminate(query_vars + evidence_dist, evidence_values)
+            result = result.normalize()
+        except error.InvalidStateError as e:
+            # print('-' * 80)
+            # print(e)
+            # print()
+            # print('query_vars:', query_vars)
+            # print('evidence_values:', evidence_values)
+            # Actually, don't deal with this here ... 
+            raise
 
         # At this point, result's scope is over all query and evidence variables
         # If we're computing an entire conditional distribution ...
-        # if evidence_dist:
         if evidence_vars:
             try:
                 result = result / result.sum_out(query_vars)
@@ -208,27 +276,30 @@ class BayesianNetwork(Bag):
                 # print('-' * 80)
 
 
-        if evidence_values:
-            indices = []
-
-            for level, value in evidence_values.items():
-                idx = result._data.index.get_level_values(level) == value
-                indices.append(list(idx))
-                # print('-' * 80)
-                # print(level, value)
-                # print('-' * 80)
-
-            zipped = list(zip(*indices))
-            idx = [all(x) for x in zipped]
-            # print('indices: ', indices)
-            # print('zipped:', zipped)
-            # print('idx: ', idx)
-            # print('-' * 80)
-            result = Factor(result._data[idx])
+        # The code below only works if eliminate() is called *without* evidence
+        # ----------------------------------------------------------------------
+        # if evidence_values :
+        #     indices = []
+        # 
+        #     for level, value in evidence_values.items():
+        #         idx = result._data.index.get_level_values(level) == value
+        #         indices.append(list(idx))
+        #         # print('-' * 80)
+        #         # print(level, value)
+        #         # print('-' * 80)
+        # 
+        #     zipped = list(zip(*indices))
+        #     idx = [all(x) for x in zipped]
+        #     # print('indices: ', indices)
+        #     # print('zipped:', zipped)
+        #     # print('idx: ', idx)
+        #     # print('-' * 80)
+        #     result = Factor(result._data[idx])
 
         if isinstance(result, Factor):
-            order = list(evidence_vars) + list(query_vars)
-            result = result.reorder_scope(order)
+            # order = list(evidence_vars) + list(query_vars)
+            # order = list(query_vars)
+            # result = result.reorder_scope(order)
             result.sort_index()
             return CPT(result, conditioned_variables=query_vars)
 
@@ -258,6 +329,16 @@ class BayesianNetwork(Bag):
         qd, qv, gd, gv = self._parse_query_string(query_string)
         return self.compute_posterior(qd, qv, gd, gv)
 
+    def EM_learning(self, data, reset_CPTs=True):
+        """Perform parameter learning.
+
+        Sources:
+            * https://www.cse.ust.hk/bnbook/pdf/l07.h.pdf
+            * https://www.youtube.com/watch?v=NDoHheP2ww4
+        """
+        pass
+
+    # --- methods for serialization ---
     def as_dict(self):
         """Return a dict representation of this Bayesian Network."""
         return {

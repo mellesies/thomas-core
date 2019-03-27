@@ -40,7 +40,6 @@ class TestFactor(unittest.TestCase):
         self.assertEquals(fB_A['a0', 'b1'], 0.75)
         self.assertEquals(fB_A['a0', 'b0'], 0.25)
 
-
     def test_multiplication(self):
         """Test factor multiplication."""
         # Get the Factors for the Sprinkler network
@@ -75,6 +74,21 @@ class TestFactor(unittest.TestCase):
         self.assertAlmostEquals(fB['b0'], 0.58, places=2)
 
         self.assertAlmostEquals(fB.sum(), 1, places=8)
+
+    def test_summing_out_all(self):
+        """Test summing out variables."""
+        # Get the Factors for the Sprinkler network
+        fA, fB_A, fC_A, fD_BC, fE_C = pybn.examples.get_sprinkler_factors()
+
+        # Multiplying the factor with a *prior* with a *conditional* distribution, yields
+        # a *joint* distribution.
+        fAB = fA * fB_A
+
+        # By summing out A, we'll get the prior over B
+        total = fAB.sum_out(['A', 'B'])
+
+        # Make sure we did this right :-)
+        self.assertAlmostEquals(total, 1.00, places=2)
 
     def test_serialization_simple(self):
         """Test the JSON serialization."""
