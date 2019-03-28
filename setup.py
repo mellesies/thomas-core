@@ -16,6 +16,7 @@ setup(
         'numpy',
         'pandas',
         'lark-parser',
+        'termcolor',
     ],
     zip_safe=False,
     test_suite='nose.collector',
