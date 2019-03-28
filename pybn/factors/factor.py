@@ -73,17 +73,19 @@ class Factor(object):
 
     def __getitem__(self, key):
         """A[x] <==> A.__getitem__(x)"""
-        scope = self.scope
 
-        if isinstance(key, str):
-            key = f'{scope[0]}.{key}'
-
-        elif isinstance(key, tuple):
-            prefixed = []
-            for i, k in enumerate(key):
-               prefixed.append(f'{scope[i]}.{k}')
-
-            key = tuple(prefixed)
+        # It seems the entire prefix-thing is completely unnecessary
+        # scope = self.scope
+        # 
+        # if isinstance(key, str):
+        #     key = f'{scope[0]}.{key}'
+        #
+        # elif isinstance(key, tuple):
+        #     prefixed = []
+        #     for i, k in enumerate(key):
+        #        prefixed.append(f'{scope[i]}.{k}')
+        #
+        #     key = tuple(prefixed)
 
         result = self._data.__getitem__(key)
 

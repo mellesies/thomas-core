@@ -98,29 +98,52 @@ def _process_prefix_index(idx, add_or_remove):
     # there's no need to call `set_codes()`.
     return pd.Index(new_states, name=idx.name)
 
+
 def add_prefix_to_index(idx):
     """Add prefixes to an Index or MultiIndex."""
-    return _process_prefix_index(idx, 'add')
+
+    # It seems the entire prefix-thing is completely unnecessary
+    # return _process_prefix_index(idx, 'add')
+    return idx
 
 def add_prefix_to_dict(variable_states):
     """Add prefixes to dict with states."""
-    prefixed = {}
 
-    for name, states in variable_states.items():
-        prefix = f'{name}.'
-        if isinstance(states, str):
-            if states.startswith(prefix):
-                prefixed[name] = f'{states}'
-            else:                
-                prefixed[name] = f'{prefix}{states}'
-        else:
-            prefixed[name] = [f'{prefix}{s}' if not s.startswith(prefix) else s for s in states]
+    # It seems the entire prefix-thing is completely unnecessary
+    return variable_states
 
-    return prefixed
+    # prefixed = {}
+    #
+    # for name, states in variable_states.items():
+    #     prefix = f'{name}.'
+    #     if isinstance(states, str):
+    #         if states.startswith(prefix):
+    #             prefixed[name] = f'{states}'
+    #         else:                
+    #             prefixed[name] = f'{prefix}{states}'
+    #     else:
+    #         prefixed[name] = [f'{prefix}{s}' if not s.startswith(prefix) else s for s in states]
+    #
+    # return prefixed
+
 
 def remove_prefix_from_index(idx):
     """Remove any prefixes from a dict with variable states."""
-    return _process_prefix_index(idx, 'remove')
+    # It seems the entire prefix-thing is completely unnecessary
+    return idx
+    # return _process_prefix_index(idx, 'remove')
+
+def remove_from_dict_by_value(dict_, value):
+    """filter entries that have value `value` from the dict."""
+    return {k:v for k,v in evidence_values.items() if v == value}
+
+def remove_none_values_from_dict(dict_):
+    """Remove none values, like `None` and `np.nan` from the dict."""
+    t = lambda x: (x is None) or (isinstance(x, float) and np.isnan(x))
+    result = {k:v for k,v in dict_.items() if not t(v)}
+    return result
+
+
 
 def index_to_dict(idx):
     if isinstance(idx, pd.MultiIndex):
@@ -128,11 +151,3 @@ def index_to_dict(idx):
 
     return {idx.name: list(idx)}
 
-def remove_from_dict_by_value(dict_, value):
-    return {k:v for k,v in evidence_values.items() if v == value}
-
-def remove_none_values_from_dict(dict_):
-    """func() should return True for entries to keep."""
-    t = lambda x: (x is None) or (isinstance(x, float) and np.isnan(x))
-    result = {k:v for k,v in dict_.items() if not t(v)}
-    return result
