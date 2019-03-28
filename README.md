@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/mellesies/py-bn.svg?branch=master)](https://travis-ci.org/mellesies/py-bn)
+
 # py-bn
 Very simple (almost naive ;-) bayesian network implementation.
 
