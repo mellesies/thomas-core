@@ -121,6 +121,10 @@ class Node(object):
     def from_dict(cls, d):
         """Return a Node (subclass) initialized by its dict representation."""
         clsname = d['type']
+
+        if clsname == cls.__name__:
+            raise Exception('Cannot instantiate abstract class "Node"')
+
         clstype = getattr(sys.modules[__name__], clsname)
         return clstype.from_dict(d)
 
@@ -130,7 +134,7 @@ class Node(object):
 class DiscreteNetworkNode(Node):
     """Node in a Bayesian Network with discrete values."""
     
-    def __init__(self, RV, name=None, states=None, description=''):
+    def __init__(self, RV, name=None, states=None, description='', cpt=None):
         """Initialize a new discrete Node.
 
         A Node represents a random variable (RV) in a Bayesian Network. For
@@ -146,7 +150,11 @@ class DiscreteNetworkNode(Node):
         super().__init__(RV, name, description)
 
         self.states = states or []
-        self._cpt = None
+
+        if cpt is not None:
+            self.cpt = cpt
+        else:
+            self._cpt = None
 
     def __repr__(self):
         """x.__repr__() <==> repr(x)"""
@@ -197,9 +205,11 @@ class DiscreteNetworkNode(Node):
             e = "Conditioned variable in CPT should correspond to Node's RV"
             raise Exception(e)
 
-        elif self.states and self.states != cpt.variable_states[self.RV]:
-            e = "States in CPT should match the Node's states"
-            raise Exception(e)
+        # elif self.states and self.states != cpt.variable_states[self.RV]:
+        #     e = "States in CPT should match the Node's states.\n"
+        #     e += f" -> Node: {self.states}\n"
+        #     e += f" -> CPT: {cpt.variable_states[self.RV]}\n"
+        #     raise Exception(e)
 
         if not self.states:
             self.states = cpt.variable_states[self.RV]
@@ -246,7 +256,7 @@ class DiscreteNetworkNode(Node):
             True iff the parent was added.
         """
         e = "Parent of a DiscreteNetworkNode should be a DiscreteNetworkNode."
-        e += f"Not a {type(parent)}"
+        e += f" Not a {type(parent)}"
         assert isinstance(parent, DiscreteNetworkNode), e
 
         if super().add_parent(parent, **kwargs):

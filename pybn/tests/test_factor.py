@@ -4,7 +4,7 @@ import unittest
 import doctest
 import logging
 
-import pybn as bn
+import pybn
 import pybn.examples
 
 log = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class TestFactor(unittest.TestCase):
             Regression test for GitHub issue #1.
         """
         # P(A)
-        fA = bn.Factor(
+        fA = pybn.Factor(
             [0.6, 0.4], 
             {'A': ['a1', 'a0']}
         )
@@ -30,7 +30,7 @@ class TestFactor(unittest.TestCase):
         self.assertEquals(fA['a0'], 0.4)
 
         # P(B|A)
-        fB_A = bn.Factor(
+        fB_A = pybn.Factor(
             [0.2, 0.8, 0.75, 0.25], 
             {'A': ['a1', 'a0'],'B': ['b1', 'b0']}
         )
@@ -103,7 +103,7 @@ class TestFactor(unittest.TestCase):
 
     def test_serialization_simple(self):
         """Test the JSON serialization."""
-        [fA, fB_A, fC_A, fD_BC, fE_C] = bn.examples.get_sprinkler_factors()
+        [fA, fB_A, fC_A, fD_BC, fE_C] = pybn.examples.get_sprinkler_factors()
 
         dict_repr = fA.as_dict()
 
@@ -113,13 +113,13 @@ class TestFactor(unittest.TestCase):
 
         self.assertTrue(dict_repr['type'] == 'Factor')
 
-        fA2 = bn.Factor.from_dict(dict_repr)
+        fA2 = pybn.Factor.from_dict(dict_repr)
         self.assertEquals(fA.scope, fA2.scope)
         self.assertEquals(fA.variable_states, fA2.variable_states)
 
     def test_serialization_complex(self):
         """Test the JSON serialization."""
-        [fA, fB_A, fC_A, fD_BC, fE_C] = bn.examples.get_sprinkler_factors()
+        [fA, fB_A, fC_A, fD_BC, fE_C] = pybn.examples.get_sprinkler_factors()
 
         dict_repr = fB_A.as_dict()
 
@@ -129,7 +129,7 @@ class TestFactor(unittest.TestCase):
 
         self.assertTrue(dict_repr['type'] == 'Factor')
         
-        fB_A2 = bn.Factor.from_dict(dict_repr)
+        fB_A2 = pybn.Factor.from_dict(dict_repr)
         self.assertEquals(fB_A.scope, fB_A2.scope)
         self.assertEquals(fB_A.variable_states, fB_A2.variable_states)
 

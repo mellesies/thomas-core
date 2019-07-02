@@ -105,6 +105,7 @@ class Factor(object):
                 idx = data.index
 
         elif isinstance(data, Factor):
+            variable_states = data._variable_states
             data = data._data.copy()
             idx = data._data.index
 
@@ -115,11 +116,11 @@ class Factor(object):
             print('variable_states: ', variable_states)
             raise Exception(msg)
 
-        # Set self._data
         if np.issubdtype(type(data), np.integer):
             data = float(data)
             
         self._data = pd.Series(data, index=idx)
+        self._variable_states = variable_states
 
     def __repr__(self):
         """repr(f) <==> f.__repr__()"""
@@ -229,13 +230,13 @@ class Factor(object):
         """Sum all values of the factor."""
         return self._data.sum()
 
-    def mul(self, other, *args, **kwargs):
+    def mul(self, other):
         """A * B <=> A.mul(B)"""
         if isinstance(other, (float, np.float, np.float64)):
             print()
             print('!' * 80)
             print('being quick about it ...')
-            return Factor(self._data.mul(other, *args, **kwargs))
+            return Factor(self._data.mul(other, *args, **kwargs), self.variable_states)
 
         elif isinstance(other, Factor):
             if (not self.overlaps_with(other)
@@ -279,7 +280,16 @@ class Factor(object):
             concatted = pd.concat([multiplied], keys=keys, names=names)
             return Factor(concatted)
 
-        return Factor(me._data.mul(other._data, *args, **kwargs))
+        try:
+            result = me._data.mul(other._data)
+        except Exception as e:
+            print('exception: ', e)
+            print('me:', me._data.index.names)
+            print('other:', other._data.index.names)
+
+            raise e
+
+        return Factor(result)
 
     def div(self, other, *args, **kwargs):
         """A / B <=> A.mul(B)"""
@@ -299,9 +309,7 @@ class Factor(object):
         else:
             other_scope = set(other)
             
-        result = len(own_scope.intersection(other_scope)) > 0
-
-        return result
+        return len(own_scope.intersection(other_scope)) > 0
 
     @property
     def display_name(self):
@@ -321,7 +329,7 @@ class Factor(object):
     @property
     def scope(self):
         """Return the scope of this factor."""
-        return [v for v in self._data.index.names]
+        return list(self._data.index.names)
 
     @property
     def width(self):
@@ -331,6 +339,9 @@ class Factor(object):
     @property
     def variable_states(self):
         """Return a dict of variable states."""
+        if self._variable_states is not None:
+            return self._variable_states
+
         index = self._data_without_prefix.index
         return pybn.index_to_dict(index)
 
@@ -342,6 +353,7 @@ class Factor(object):
                 order.sort()
 
             data = self._data.reorder_levels(order)
+
         else:
             data = self._data
 
@@ -354,7 +366,11 @@ class Factor(object):
             Q (set or str): variable(s) to compute prior marginal over.
         """
         assert isinstance(Q, (set, str)), "Q should be a set or a string!"
-        vars_to_sum_out = list(set(self.scope) - set(Q))
+
+        if isinstance(Q, str):
+            Q = {Q}
+
+        vars_to_sum_out = list(set(self.scope) - Q)
 
         if self.width == 1:
             return self
@@ -485,7 +501,7 @@ class Factor(object):
 
         # Remove any prefixes ... 
         idx = pybn.remove_prefix_from_index(data.index)
-        variable_states = pybn.index_to_dict(idx)
+        variable_states = self.variable_states
 
         return {
             'type': 'Factor',

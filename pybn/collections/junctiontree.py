@@ -278,6 +278,17 @@ class TreeNode(object):
         return ','.join(self.cluster) 
 
     @property
+    def factors(self):
+        return self._factors + self.indicators
+
+    @property
+    def vars(self):
+        v = [f.vars for f in self.factors]
+        if v:
+            return set.union(*v)
+        return {}
+
+    @property
     def joint(self):
         """Compute the joint of the Node's factors."""
         if self._joint is None:

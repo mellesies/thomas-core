@@ -7,6 +7,7 @@ import pandas as pd
 import lark
 
 import pybn
+from pybn.util import sep
 
 GRAMMAR = r"""
     oobn_class: "class" name properties [comment]
@@ -76,7 +77,7 @@ class BasicTransformer(lark.Transformer):
             if isinstance(i, tuple):
                 properties.append(i)
             
-            elif i['type'] == 'Node':
+            elif i['type'] == 'DiscreteNetworkNode':
                 nodes[i['name']] = i
 
             elif i['type'] == 'CPT':
@@ -98,7 +99,7 @@ class BasicTransformer(lark.Transformer):
         """
         name, properties = items
         node = {
-            'type': 'Node',
+            'type': 'DiscreteNetworkNode',
             'name': name,
         }
         node.update(properties)
@@ -183,6 +184,9 @@ def _create_structure(tree):
         potential = tree['potentials'][name]
         node_parents = potential['parents']
 
+        for parent in node_parents:
+            edges.append((parent, name))
+
         node_states = node['states']
         parent_states = {}
 
@@ -194,11 +198,17 @@ def _create_structure(tree):
         for parent in node_parents:
             parent_states[parent] = tree['nodes'][parent]['states']
 
+        variable_states = {
+            name: node_states
+        }
+
+        variable_states.update(parent_states)
+
         # Get the data for the prior/conditional probability distribution.
         data = potential['data']
         data = np.array(data)
 
-        # If there are parents, it's a CPD
+        # If there are parents, it's a CPT
         if len(node_parents) > 0:
             # Prepare the indces for the dataframe
             index = pd.MultiIndex.from_product(
@@ -206,27 +216,52 @@ def _create_structure(tree):
                 names=parent_states.keys()
             )
             columns = pd.Index(node_states, name=name)
-
             data = data.reshape(-1, len(columns))
             df = pd.DataFrame(data, index=index, columns=columns)
 
-        # Else, it's a PD
+            print('-' * 80)
+            print(name)
+            print('-' * 80)
+            print(df.head())
+            print()
+            # print(df.stack().head())
+            # print()
+
+            cpt = pybn.CPT(
+                df.stack(),
+                conditioned_variables=[name],
+                # variable_states=variable_states
+            )
+
+            # print(pybn.CPT._index_from_variable_states(variable_states))
+            # print(df.variable_states)
+
+        # Else, it's a probability table
         else:
-            index = pd.Index(node_states, name=name)
-            columns = pd.Index([''])
-            df = pd.DataFrame(data, index=index, columns=columns)
-            df = df.transpose()
+            # index = pd.Index(node_states, name=name)
+            # columns = pd.Index([''])
+            # df = pd.DataFrame(data, index=index, columns=columns)
+            # df = df.transpose()
+            cpt = pybn.CPT(
+                data,
+                conditioned_variables=[name],
+                variable_states=variable_states
+            )
 
         # Get the data for the dataframe
         nodes[name] = {
+            'type': node['type'],
+            'RV': name,
+            'name': name,
             'states': node_states,
             'parents': node_parents,
-            'CPD': df
+            'CPT': cpt
         }
 
     network = {
         'name': tree['name'],
-        'nodes': nodes
+        'nodes': nodes,
+        'edges': edges,
     }
 
     return network
@@ -236,19 +271,27 @@ def _create_bn(structure):
     nodes = []
 
     for name, node_properties in structure['nodes'].items():
-        cpt = node_properties['CPD']
-        cpt = cpt.stack()
+        RV = node_properties['RV']
+        states = node_properties['states']
+        description = ''
+
+        cpt = node_properties['CPT']
         
         if None in cpt.index.names:
             cpt.index = cpt.index.droplevel()
 
-        nodes.append(pybn.Node(name, cpt))
+        constructor = getattr(pybn, node_properties['type'])
+
+        n = constructor(RV, name, states, description, cpt)
+        nodes.append(n)
+
+    edges = structure['edges']
 
     # for name, node_properties in structure['nodes'].items():
     #     for parent in node_properties['parents']:
     #         nodes[parent].add_child(nodes[name])
 
-    return pybn.BayesianNetwork(structure['name'], nodes)
+    return pybn.BayesianNetwork(structure['name'], nodes, edges)
 
 def read(filename):
     """Parse the OOBN file and transform it into a sensible dictionary."""

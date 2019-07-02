@@ -232,13 +232,12 @@ class BayesianNetwork(object):
         # Iterate over the JT nodes/clusters to make sure each cluster has 
         # the correct factors assigned.
         # FIXME: I think this is superfluous for minimal JTs?
-        for tree_node in nodes:
-            for missing in (tree_node.cluster - tree_node.joint.vars):
-
-                node = self.nodes[missing]
-                states = {node.RV: node.states}
-                trivial = Factor(1, variable_states=states)
-                tree_node.add_factor(trivial)
+        # for tree_node in nodes:
+        #     for missing in (tree_node.cluster - tree_node.joint.vars):
+        #         node = self.nodes[missing]
+        #         states = {node.RV: node.states}
+        #         trivial = Factor(1, variable_states=states)
+        #         tree_node.add_factor(trivial)
 
         return tree
 
@@ -359,7 +358,22 @@ class BayesianNetwork(object):
     # --- visualization ---    
     def draw(self):
         """Draw the BN using networkx & matplotlib."""
-        nx.draw(self.as_networkx(), with_labels=True)
+        # nx.draw(self.as_networkx(), with_labels=True)
+
+        nx_tree = self.as_networkx()
+        pos = nx.spring_layout(nx_tree)
+
+        nx.draw(
+            nx_tree, 
+            pos, 
+            edge_color='black', 
+            width=1, 
+            linewidths=1, 
+            node_size=1500,
+            node_color='purple',
+            alpha=1.0,
+            with_labels=True,
+        )
 
     # --- (de)serialization and conversion ---
     def as_networkx(self):

@@ -28,8 +28,7 @@ class CPT(Factor):
       - the conditioning variable states make up the rows.
     """
 
-    def __init__(self, data, conditioned_variables=None, 
-        variable_states=None, description=''):
+    def __init__(self, data, conditioned_variables=None, variable_states=None, description=''):
         """Initialize a new CPT.
 
         Args:
@@ -43,7 +42,7 @@ class CPT(Factor):
                 meaning.
         """
         if isinstance(data, Factor):
-            super().__init__(data._data)
+            super().__init__(data._data, data._variable_states)
         else:
             super().__init__(data, variable_states)
 
@@ -123,12 +122,12 @@ class CPT(Factor):
 
         return self.__class__(self._data / self._data.sum())
 
-    def reorder_scope(self, order=None):
-        return CPT(
-            super().reorder_scope(order),
-            conditioned_variables=self.conditioned,
-            description = self.description
-        )
+    # def reorder_scope(self, order=None):
+    #     return CPT(
+    #         super().reorder_scope(order),
+    #         conditioned_variables=self.conditioned,
+    #         description = self.description
+    #     )
 
     def unstack(self, level=None, *args, **kwargs):
         if level is None:
