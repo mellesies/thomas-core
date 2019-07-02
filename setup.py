@@ -17,6 +17,7 @@ setup(
         'pandas',
         'lark-parser',
         'termcolor',
+        'networkx',
     ],
     zip_safe=False,
     test_suite='nose.collector',
