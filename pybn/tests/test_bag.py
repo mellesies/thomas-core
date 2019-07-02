@@ -4,7 +4,7 @@ import unittest
 import doctest
 import logging
 
-import pybn as bn
+import pybn
 import pybn.examples
 
 log = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class TestBag(unittest.TestCase):
         """Test a Bag's scope."""
         # Get the Factors for the Sprinkler network
         factors = pybn.examples.get_sprinkler_factors()        
-        bag = bn.Bag('Sprinkler', factors)
+        bag = pybn.Bag('Sprinkler', factors)
 
         self.assertEquals(bag.scope, {'A', 'B', 'C', 'D', 'E'})
 
@@ -27,7 +27,7 @@ class TestBag(unittest.TestCase):
         """Test the variable elimination algorithm."""
         # Get the Factors for the Sprinkler network
         factors = pybn.examples.get_sprinkler_factors()        
-        bag = bn.Bag('Sprinkler', factors)
+        bag = pybn.Bag('Sprinkler', factors)
 
         # Compute the prior over C
         fC = bag.eliminate(['C'])
@@ -40,7 +40,7 @@ class TestBag(unittest.TestCase):
         """Test the variable elimination algorithm."""
         # Get the Factors for the Sprinkler network
         factors = pybn.examples.get_sprinkler_factors()        
-        bag = bn.Bag('Sprinkler', factors)
+        bag = pybn.Bag('Sprinkler', factors)
 
         # Compute the joint over A and C
         fAC = bag.eliminate(['A', 'C'])
@@ -51,11 +51,10 @@ class TestBag(unittest.TestCase):
         self.assertAlmostEquals(fAC['a1', 'c1'], 0.48, places=2)
         self.assertAlmostEquals(fAC.sum(), 1, places=8)
 
-
     def test_variable_elimination_with_evidence(self):
         """Test the variable elimination algorithm."""
         factors = pybn.examples.get_sprinkler_factors()        
-        bag = bn.Bag('Sprinkler', factors)
+        bag = pybn.Bag('Sprinkler', factors)
 
         # Compute the (unnormalized) factor over C and A=a1
         fC_a1 = bag.eliminate(['C'], {'A': 'a1'})
@@ -63,3 +62,60 @@ class TestBag(unittest.TestCase):
         self.assertAlmostEquals(fC_a1['c0'], 0.12, places=2)
         self.assertAlmostEquals(fC_a1['c1'], 0.48, places=2)
 
+    def test_compute_posterior(self):
+        """Test the function Bag.compute_posterior()."""
+        factors = pybn.examples.get_student_CPTs()        
+        bag = pybn.Bag('Student', list(factors.values()))
+
+        I = bag.compute_posterior(['I'], {}, [], {})
+        self.assertAlmostEquals(I['i0'], 0.7, places=3)
+        self.assertAlmostEquals(I['i1'], 0.3, places=3)
+
+        S_i1 = bag.compute_posterior(['S'], {}, [], {'I': 'i1'})
+        self.assertAlmostEquals(S_i1['s0'], 0.2, places=3)
+        self.assertAlmostEquals(S_i1['s1'], 0.8, places=3)
+
+        S_i0 = bag.compute_posterior(['S'], {}, [], {'I': 'i0'})
+        self.assertAlmostEquals(S_i0['s0'], 0.95, places=3)
+        self.assertAlmostEquals(S_i0['s1'], 0.05, places=3)
+
+    def test_MAP(self):
+        """Test the BayesianNetwork.MAP() function."""
+        factors = pybn.examples.get_student_CPTs()        
+        bag = pybn.Bag('Student', list(factors.values()))
+
+        argmax_I = bag.MAP(['I'], {}, False)
+        self.assertEquals(argmax_I, 'i0')
+
+        argmax_G = bag.MAP(['G'], {}, False)
+        self.assertEquals(argmax_G, 'g1')
+
+        argmax_G = bag.MAP(['G'], {}, True)
+        self.assertEquals(argmax_G[0], 'g1')
+        self.assertAlmostEquals(argmax_G[1], 0.362)
+
+    def test_P(self):
+        """Test the function BayesianNetwork.P()."""
+        factors = pybn.examples.get_student_CPTs()        
+        bag = pybn.Bag('Student', list(factors.values()))
+
+        I = bag.P('I')
+        self.assertAlmostEquals(I['i0'], 0.7, places=3)
+        self.assertAlmostEquals(I['i1'], 0.3, places=3)
+
+        G_I = bag.P('G|I')
+        self.assertEquals(G_I.scope, ['I', 'G'])
+        self.assertEquals(G_I.conditioned, ['G'])
+        self.assertEquals(G_I.conditioning, ['I'])
+
+        I_g1 = bag.P('I|G=g1')
+        self.assertAlmostEquals(I_g1['i0'], 0.387, places=3)
+        self.assertAlmostEquals(I_g1['i1'], 0.613, places=3)
+
+    def test_JPT(self):
+        """Test Joint Probability Table."""
+        factors = pybn.examples.get_student_CPTs()        
+        bag = pybn.Bag('Student', list(factors.values()))
+
+        JPT = bag.eliminate(list(bag.scope)).normalize()
+        self.assertEquals(JPT.sum(), 1)

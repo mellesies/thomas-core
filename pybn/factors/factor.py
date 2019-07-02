@@ -17,6 +17,65 @@ from .. import error as e
 
 
 # ------------------------------------------------------------------------------
+# Helper functions.
+# ------------------------------------------------------------------------------
+def mul(x1, x2, debug=False): 
+    """Multiply two Factors with each other.
+
+    Helper function for functools.reduce().
+    """
+    if debug:
+        try:
+            print('-' * 80)
+            print(f'x1: {x1.scope}')
+            print(x1)
+            print('-' * 80)
+            print(f'x2: {x2.scope}')
+            print(x2)
+            print()
+        except Exception as e:
+            print('x1:', x1, type(x1))
+            print('-' * 80)
+            print('x2:', x2, type(x2))
+            print()
+
+    try:
+        if isinstance(x1, Factor):
+            result = x1.mul(x2)
+        elif isinstance(x2, Factor):
+            result = x2.mul(x1)
+        else:
+            result = x1 * x2
+
+    except Exception as e: 
+        print('-' * 80)
+        print(e)
+        print('-' * 80)
+        print('could not multiply two factors')
+        print(f'x1: {x1.display_name}: {x1.scope}')
+        print(x1)
+        print('-' * 80)
+        print(f'x2: {x2.display_name}: {x2.scope}')
+        print(x2)
+        print()
+        raise
+
+    if debug:
+        try:
+            print('result:', result.scope)
+        except Exception as e:
+            print('result is not a factor')
+
+        print(result)
+        print('-' * 80)
+        print()
+
+    if isinstance(result, Factor):
+        result = result.reorder_scope()
+    return result
+
+
+# ------------------------------------------------------------------------------
 # Factor
 # ------------------------------------------------------------------------------
 class Factor(object):
@@ -57,6 +116,9 @@ class Factor(object):
             raise Exception(msg)
 
         # Set self._data
+        if np.issubdtype(type(data), np.integer):
+            data = float(data)
+            
         self._data = pd.Series(data, index=idx)
 
     def __repr__(self):
@@ -64,6 +126,10 @@ class Factor(object):
         return f'{self.display_name}\n{repr(self._data_without_prefix)}'
 
     def __mul__(self, other):
+        """A * B <=> A.mul(B)"""
+        return self.mul(other)
+
+    def __rmul__(self, other):
         """A * B <=> A.mul(B)"""
         return self.mul(other)
 
@@ -165,13 +231,23 @@ class Factor(object):
 
     def mul(self, other, *args, **kwargs):
         """A * B <=> A.mul(B)"""
-        if isinstance(other, Factor):
+        if isinstance(other, (float, np.float, np.float64)):
+            print()
+            print('!' * 80)
+            print('being quick about it ...')
+            return Factor(self._data.mul(other, *args, **kwargs))
+
+        elif isinstance(other, Factor):
             if (not self.overlaps_with(other)
                 and self.display_name != other.display_name):
                 return self.outer(other)
 
-            # Other is a factor with overlap with `self`
+            # If we're here, other is a Factor *with* overlap with `self`
             other = other.reorder_scope()
+
+        else:
+            print('?' * 80)
+            print('what the flying ... ', type(other))
 
         # Safety precaution. Really only necessary when multiplying a Series or
         # another Factor.
@@ -217,7 +293,12 @@ class Factor(object):
         other.
         """
         own_scope = set(self.scope)
-        other_scope = set(other.scope)
+
+        if isinstance(other, Factor):
+            other_scope = set(other.scope)
+        else:
+            other_scope = set(other)
+            
         result = len(own_scope.intersection(other_scope)) > 0
 
         return result
@@ -231,6 +312,11 @@ class Factor(object):
             names = '?'
 
         return f'factor({names})'
+
+    @property
+    def vars(self):
+        """Return the variables in this node (i.e. the scope) as a set."""
+        return set(self.scope)
 
     @property
     def scope(self):
@@ -257,9 +343,23 @@ class Factor(object):
 
             data = self._data.reorder_levels(order)
         else:
-            data = self._data.copy()
+            data = self._data
 
         return Factor(data)
+
+    def project(self, Q):
+        """Project the current factor on Q.
+
+        Args:
+            Q (set or str): variable(s) to compute prior marginal over.
+        """
+        assert isinstance(Q, (set, str)), "Q should be a set or a string!"
+        vars_to_sum_out = list(set(self.scope) - set(Q))
+
+        if self.width == 1:
+            return self
+
+        return self.sum_out(vars_to_sum_out)
 
     def sum_out(self, variable):
         """Sum-out a variable (or list of variables) from the factor.
@@ -286,7 +386,7 @@ class Factor(object):
             return self.sum()
 
         # Unstack the requested variables into columns and sum over them.
-        unstacked = self._data.unstack(variable)
+        unstacked = self._data.unstack(tuple(variable_set))
         summed = unstacked.sum(axis=1)
 
         return Factor(summed)
@@ -337,7 +437,11 @@ class Factor(object):
         return Factor(self._data.droplevel(level))
 
     def set_evidence(self, **kwargs):
-        """Return a reduced factor."""
+        """
+        *** FIXME: Deprecated! This method shouldn't be here. ***
+
+        Return a reduced factor.
+        """
 
         # when called like set_evidence(D='d1', E='e0'), we'll need to 
         # set rows that do not correspond to the evidence to zero.
@@ -357,11 +461,6 @@ class Factor(object):
 
             idx = data.index.get_level_values(l) != value
             data[idx] = np.nan
-
-        # data = data.dropna()
-        #        
-        # if len(data) == 0:
-        #     raise Exception('this is weird!?')
 
         return Factor(data.dropna())
 

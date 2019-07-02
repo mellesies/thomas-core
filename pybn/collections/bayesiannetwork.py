@@ -6,6 +6,7 @@ from datetime import datetime as dt
 import itertools
 from collections import OrderedDict
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 from pandas.core.dtypes.dtypes import CategoricalDtype
@@ -13,12 +14,14 @@ from functools import reduce
 
 import json
 
-import pybn as bn
-from ..factors.factor import Factor
+import pybn
+# from . import ProbabilisticModel
+from ..factors.factor import Factor, mul
 from ..factors.cpt import CPT
-from ..factors.node import Node
+from ..factors.node import Node, DiscreteNetworkNode
 
 from .bag import Bag
+from .junctiontree import JunctionTree, TreeNode
 
 from .. import error
 
@@ -26,326 +29,351 @@ from .. import error
 # ------------------------------------------------------------------------------
 # BayesianNetwork
 # ------------------------------------------------------------------------------
-class BayesianNetwork(Bag):
-    """A Bayesian Network (BN) consistst of Nodes and Edges.
+class BayesianNetwork(object):
+    """A Bayesian Network (BN) consistst of Nodes and directed Edges.
 
-    Conceptually a BN restricts/extends a Bag of factors by:
-    - associating a node with each CPT; to make this possible it also ensures 
-      that ...
-    - every CPT only has a *single* conditioned variable
-    - establishing relationships between the nodes by interpreting conditioning 
-      variables to be the parents of the conditioned variable.
+    A BN is essentially a Directed Acyclic Graph (DAG) where each Node 
+    represents a Random Variable (RV) and is associated with a conditional 
+    probability table (CPT). A CPT can only have a *single* conditioned 
+    variable; zero or more *conditioning*  variables are allowed. Conditioning 
+    variables are represented as the Node's parents.
+
+    BNs can be used for inference. To do this efficiently, the BN first 
+    constructs a JunctionTree (or JoinTree).
+
+    Because of the relation between the probaility distribution (expressed as a
+    set of CPTs) and the graph structure, it is possible to instantiate a BN
+    from a list of CPTs.
     """
 
-    def __init__(self, name, nodes):
+    def __init__(self, name, nodes, edges):
         """Instantiate a new BayesianNetwork.
 
         Args:
             name (str): Name of the Bayesian Network.
             nodes (list): List of Nodes.
+            edges (list): List of Edges.
         """
-        super().__init__(name, nodes)
+        self.name = name
 
-        self.nodes = {n.RV: n for n in self._factors}
-        self.edges = []
+        # dictionary, indexed by nodes' random variables
+        self.nodes = {}
 
-        for node in self._factors:
-            for parent in node.conditioning:
-                self.edges.append((parent, node.RV))
+        # Process the nodes and edges.
+        if nodes:
+            self.add_nodes(nodes)
 
-    def __getitem__(self, name):
+            if edges:
+                self.add_edges(edges)
+
+        # Cached junction tree
+        self._jt = None
+
+    def __getitem__(self, RV):
         """x[name] <==> x.nodes[name]"""
-        return self.nodes[name]
+        return self.nodes[RV]
 
     def __repr__(self):
+        """x.__repr__() <==> repr(x)"""
         s = f"<BayesianNetwork name='{self.name}'>\n"
-        for n in self._factors:
-            s += f"  <Node name='{n.name}' />\n"
+        for RV in self.nodes:
+            s += f"  <Node RV='{RV}' />\n"
 
         s += '</BayesianNetwork>'
 
         return s
 
-    def _parse_query_string(self, query_string):
-        """Parse a query string into a tuple of query_dist, query_values,
-        evidence_dist, evidence_values.
+    # --- properties ---
+    @property
+    def edges(self):
+        edges = []
+        for n in self.nodes.values():
+            for c in n._children:
+                edges.append((n.RV, c.RV))
 
-        The query P(I,G=g1|D,L=l0) would imply:
-            query_dist = ('I',)
-            query_values = {'G': 'g1'}
-            evidence_dist = ('D',)
-            evidence_values = {'L': 'l0'}
-        """
-        def split(s):
-            dist, values = [], {}
-            params = []
+        return edges
+    
+    @property
+    def junction_tree(self):
+        """Return the junction tree for this network."""
+        if self._jt is None:
+            self._jt = self._compute_junction_tree()
 
-            if s:
-                params = s.split(',')
+        return self._jt
+    
+    @property
+    def states(self):
+        return {RV: self.nodes[RV].states for RV in self.nodes}
 
-            for p in params:
-                if '=' in p:
-                    key, value = p.split('=')
-                    values[key] = value
-                else:
-                    dist.append(p)
+    # --- semi-private ---
+    def _get_elimination_clusters_rec(self, edges=None, order=None):
+        """Recursively compute the clusters for the elimination tree."""
+        if edges is None:
+            edges = self.moralize_graph()
 
-            return dist, values
+        if order is None:
+            order = self.get_node_elimination_order()
 
-        query_str, given_str = query_string, ''
+        if not len(order):
+            return []
 
-        if '|' in query_str:
-            query_str, given_str = query_string.split('|')
+        # Reconstruct the graph
+        G = nx.Graph()
+        G.add_nodes_from(order)
+        G.add_edges_from(edges)
 
-        return split(query_str) + split(given_str)
+        node = order.pop(0)
 
-    def _complete_case(self, case):
-        """..."""
-        missing = list(case[case.isna()].index)
-        evidence = [e for e in case.index if e not in missing]
+        # Make sure the neighbors from `node` are connected
+        neighbors = list(G.neighbors(node))
 
-        try:
-            jpt = self.compute_posterior(
-                missing,
-                {},
-                [],
-                evidence_values=case.to_dict()
-            )
-        except error.InvalidStateError as e:
-            print('WARNING - Could not complete case:', e)
-            return np.NaN
+        if len(neighbors) > 1:
+            for outer_idx in range(len(neighbors)):
+                n1 = neighbors[outer_idx]
 
-        # Creata a dataframe by repeating the evicence multiple times
-        imputated = pd.DataFrame([case[evidence]] * len(jpt), index=jpt.index)
+                for inner_idx in range(outer_idx+1, len(neighbors)):
+                    n2 = neighbors[inner_idx]
+                    G.add_edge(n1, n2)
 
-        # The combinations of missing variables are in the index. Reset the
-        # index to make them part of the dataframe.
-        imputated = imputated.reset_index()
+        G.remove_node(node)
+        cluster = set([node, ] + neighbors)
 
-        # Add the computed probabilities as weights
-        imputated.loc[:, 'weight'] = jpt.values
+        return [cluster, ] + self._get_elimination_clusters_rec(G.edges, order)
 
-        return imputated
+    def _get_elimination_clusters(self, edges=None, order=None):
+        """Compute the clusters for the elimination tree."""
 
-    def _complete_cases(self, incomplete_cases):
-        # Create a dataframe that holds *all* unique cases. This way we can
-        # complete these cases once and then just count their frequency.
+        # Get the full set of clusters.
+        clusters = self._get_elimination_clusters_rec(edges=edges, order=order)
 
-        # drop_duplicates() will work fine with NaNs
-        unique_cases = incomplete_cases.drop_duplicates().reset_index(drop=True)
+        # Merge clusters that are contained in other clusters by iterating over
+        # the full set and replacing the smaller with the larger clusters.
+        merged = list(clusters)
 
-        # apply() yields a Series where each entry holds a DataFrame.
-        dfs = unique_cases.apply(self._complete_case, axis=1)
-        dfs = dfs.dropna()
+        for _ in clusters:
+            for outer_idx, outer_cluster in enumerate(merged):
+                modified = False
 
-        # Add an index to the newly created Series.
-        # While set_index() also works with NaNs, but selecting from the index
-        # becomes horribly difficult. 
-        cols = unique_cases.columns.tolist()
-        unique_cases = unique_cases.fillna('NaN')
-        dfs.index = unique_cases.set_index(cols).index
+                for inner_idx, inner_cluster in enumerate(merged):
+                    if outer_idx == inner_idx:
+                        continue
 
-        # We can compute the unique cases' counts
-        # Also, groupby() doesn't work with NaNs ... 
-        incomplete_cases = incomplete_cases.fillna('NaN')
-        counts = incomplete_cases.groupby(cols).size()
+                    if inner_cluster.issubset(outer_cluster):
+                        # print(inner_cluster, 'is a subset of', outer_cluster)
+                        modified = True
+                        break
 
-        return dfs, counts
+                if modified:
+                    # Break from the *middle* for loop.
+                    break
 
-    def prune(self, Q, e):
-        """Prune the graph."""
+            if modified:
+                # We'll have to replace inner_cluster with outer_cluster to
+                # maintain the running intersection property.
+                merged[inner_idx] = merged[outer_idx]
+                del merged[outer_idx]
 
-        # For our purposes, it doesn't matter if a variable is query or evidene.
-        vars_to_keep = set(Q + list(e.keys()))
-
-        # Copy the list of edges
-        edges = list(self.edges)
-
-        while True:
-            # Using zip transforms a list of tuples:
-            # [('I', 'S'), ('I', 'G')] --> [('I', 'I'), ('S', 'G')]
-            parents, children = list(zip(*edges))
-            parents, children = set(parents), set(children)
-
-            # Nodes in 'children' that are not in 'parents' are leaves!
-            leaves = children - parents
-
-            # Leaves that can be pruned, should not be in 'vars_to_keep'
-            prunable = leaves - vars_to_keep
-
-            # Filter out edges that can be pruned
-            edges = [(p, c) for (p, c) in edges if c not in prunable]
-
-            # Stop if there was nothing to remove during this iteration
-            if (len(prunable) == 0) or (len(edges) == 0):
+            else:
+                # Nothing was modified this iteration: it seems we're done.
+                # Break from the *outermost* loop.
                 break
 
-        # Its possible that we've removed *all* edges, for instance if Q
-        # only contains a parent node.
-        if edges:
-            parents, children = list(zip(*edges))
-        else:
-            parents, children = [], []
+        return merged
+    
+    def _compute_junction_tree(self):
+        """Compute the junction tree for the current graph."""
 
-        nodes = vars_to_keep.union(set(parents + children))        
-        factors = [f for f in self._factors if f.RV in nodes]
+        # First, create the JT itself.
+        clusters = self._get_elimination_clusters()
+        tree = JunctionTree(clusters)
 
-        return factors
+        nodes = list(tree.nodes.values())
 
-    def compute_posterior(self, query_dist, query_values, evidence_dist, 
-        evidence_values, **kwargs):
+        for idx, node_i in reversed(list(enumerate(nodes))):
+            C_i = node_i.cluster
+
+            # We'll compute union(C_i+1 , C_i+2, .... C_n)
+            # 'remaining' will hold clusters C_i+1 , C_i+2, .... C_n
+            remaining_nodes = nodes[idx+1:]
+
+            if remaining_nodes:
+                remaining_clusters = [n.cluster for n in remaining_nodes]                
+                intersection = C_i.intersection(set.union(*remaining_clusters))
+
+                for node_j in remaining_nodes:
+                    C_j = node_j.cluster
+
+                    if intersection.issubset(C_j):
+                        tree.add_edge(node_i, node_j)
+                        break
+
+        # Iterate over all nodes in the BN to assign each BN node/CPT to the 
+        # first JT node that contains the BN node's RV. Also, assign an evidence 
+        # indicator for that variable to that JT node.
+        # Any other JT node that contains the BN node's RV, should be given the
+        # trivial factor (all 1s).
+        indicators = {}
+
+        # Iterate over the nodes in the BN
+        for RV, node in self.nodes.items():
+            first = True
+
+            # Iterate over the JT nodes/clusters
+            for tree_node in nodes:
+                if node.vars.issubset(tree_node.cluster):
+                    tree_node.add_factor(node.cpt)
+                    tree.set_node_for_RV(RV, tree_node)
+
+                    states = {RV: node.states}
+                    indicator = Factor(1, variable_states=states)
+                    tree.add_indicator(indicator, tree_node)
+                    break
+                                
+        # Iterate over the JT nodes/clusters to make sure each cluster has 
+        # the correct factors assigned.
+        # FIXME: I think this is superfluous for minimal JTs?
+        for tree_node in nodes:
+            for missing in (tree_node.cluster - tree_node.joint.vars):
+
+                node = self.nodes[missing]
+                states = {node.RV: node.states}
+                trivial = Factor(1, variable_states=states)
+                tree_node.add_factor(trivial)
+
+        return tree
+
+    # --- graph manipulation ---
+    def add_nodes(self, nodes):
+        """Add a Node to the network."""
+        for node in nodes:
+            self.nodes[node.RV] = node
+
+        self._jt = None
+
+    def add_edges(self, edges):
+        """Recreate the edges using the nodes' CPTs."""
+        for (parent_RV, child_RV) in edges:
+            self.nodes[parent_RV].add_child(self.nodes[child_RV])
+    
+        self._jt = None
+
+    # --- inference ---
+    def moralize_graph(self):
+        """Return the moral graph.
+
+        FIXME: NetworkX has a method for this.    
+        """
+        edges = []
+
+        for node in self.nodes.values():
+            # Copy the list of parents
+            parents = list(node._parents)
+
+            edges += [(p.RV, node.RV) for p in parents]
+
+            for outer_idx in range(len(parents)):
+                p1 = parents[outer_idx]
+
+                for inner_idx in range(outer_idx+1, len(parents)):
+                    p2 = parents[inner_idx]
+                    edges.append((p1.RV, p2.RV))
+
+        return edges
+
+    def get_node_elimination_order(self):
+        """Return a naïve elimination ordering."""
+        G = nx.Graph()
+        G.add_edges_from(self.moralize_graph())
+
+        degrees = list(G.degree)
+        degrees.sort(key=lambda x: x[1])
+
+        return [d[0] for d in degrees]
+
+    def compute_posterior(self, query_dist, evidence_values=None):
         """Compute the probability of the query variables given the evidence.
 
-        The query P(I,G=g1|D,L=l0) would imply:
-            query_dist = ['I']
-            query_values = {'G': 'g1'}
-            evidence_dist = ('D',)
-            evidence_values = {'L': 'l0'}
-
         :param tuple query_dist: Random variable to query
-        :param dict query_values: Random variable values to query
-        :param tuple evidence_dist: Conditioned on evidence
         :param dict evidence_values: Conditioned on values
-        :return: pandas.Series (possibly with MultiIndex)
+        :return: dict, indexed by RV
         """
-        query_values = bn.add_prefix_to_dict(query_values)
+        if evidence_values is None:
+            evidence_values = {}
+        
+        # Reset the tree and apply evidence
+        self.junction_tree.reset_evidence()
 
-        # evidence_values = {k:v for k,v in evidence_values.items() if isinstance(v, str)}
-        evidence_values = bn.remove_none_values_from_dict(evidence_values)
-        evidence_values = bn.add_prefix_to_dict(evidence_values)
+        for RV, state in evidence_values.items():
+            self.junction_tree.set_evidence_hard(RV, state)
 
-        # Get a list of *all* variables to query
-        query_vars = list(query_values.keys()) + query_dist
-        evidence_vars = list(evidence_values.keys()) + evidence_dist
+        return self.junction_tree.get_probabilities(query_dist)
 
-        # First, compute the joint over the query variables and the evidence.
-        try:
-            # result = self.eliminate(query_vars, evidence_values, **kwargs)
-            result = self.eliminate(query_vars + evidence_dist, evidence_values)
-            result = result.normalize()
-        except error.InvalidStateError as e:
-            # print('-' * 80)
-            # print(e)
-            # print()
-            # print('query_vars:', query_vars)
-            # print('evidence_values:', evidence_values)
-            # Actually, don't deal with this here ... 
-            raise
+    
+    def reset_evidence(self, RV=None):
+        """Reset evidence for one or more RVs."""
+        self.junction_tree.reset_evidence(RV)
 
-        # At this point, result's scope is over all query and evidence variables
-        # If we're computing an entire conditional distribution ...
-        if evidence_vars:
-            try:
-                result = result / result.sum_out(query_vars)
-            except:
-                print('-' * 80)
-                print(f'trying to sum out {query_vars}')
-                print(result)
-                print('-' * 80)
-                raise
+    def set_evidence_likelihood(self, RV, **kwargs):
+        """Set likelihood evidence on a variable."""
+        self.junction_tree.set_evidence_likelihood(RV, **kwargs)
 
-        # If query values were specified we can extract them from the factor.
-        if query_values:
-            levels = list(query_values.keys())
-            values = list(query_values.values())
-
-            if result.width == 1:
-                result = result[values[0]]
-
-            elif result.width > 1:
-                # print(f'values: {values}', f'levels: {levels}')
-                # print(result)
-                indices = []
-
-                for level, value in query_values.items():
-                    # print('-' * 80)
-                    # print(level, value)
-                    # print('-' * 80)
-                    idx = result._data.index.get_level_values(level) == value
-                    indices.append(list(idx))
-
-                # result = Factor(result._data.xs(values, level=levels))
-
-                zipped = list(zip(*indices))
-                idx = [all(x) for x in zipped]
-                result = Factor(result._data[idx])
-                # print('indices: ', indices)
-                # print('zipped:', zipped)
-                # print('idx: ', idx)
-                # print('result: ', result)
-                # print('-' * 80)
-
-
-        # The code below only works if eliminate() is called *without* evidence
-        # ----------------------------------------------------------------------
-        # if evidence_values :
-        #     indices = []
-        # 
-        #     for level, value in evidence_values.items():
-        #         idx = result._data.index.get_level_values(level) == value
-        #         indices.append(list(idx))
-        #         # print('-' * 80)
-        #         # print(level, value)
-        #         # print('-' * 80)
-        # 
-        #     zipped = list(zip(*indices))
-        #     idx = [all(x) for x in zipped]
-        #     # print('indices: ', indices)
-        #     # print('zipped:', zipped)
-        #     # print('idx: ', idx)
-        #     # print('-' * 80)
-        #     result = Factor(result._data[idx])
-
-        if isinstance(result, Factor):
-            # order = list(evidence_vars) + list(query_vars)
-            # order = list(query_vars)
-            # result = result.reorder_scope(order)
-            result.sort_index()
-            return CPT(result, conditioned_variables=query_vars)
-
-        return result
-
-    def MAP(self, query_dist, evidence_values, include_probability=True):
-        """Perform a Maximum a Posteriori query."""
-        d = self.compute_posterior(query_dist, {}, [], evidence_values)
-        evidence_vars = [e for  e in evidence_values.keys() if e in d.scope]
-
-        d = d.droplevel(evidence_vars)
-
-        if include_probability:
-            return d.idxmax(), d.max()
-
-        return d.idxmax()
-
-    def P(self, query_string):
-        """Return the probability as queried by query_string.
-
-        P('I,G=g1|D,L=l0') is equivalent to calling compute_posterior with:
-            query_dist = ('I',)
-            query_values = {'G': 'g1'}
-            evidence_dist = ('D',)
-            evidence_values = {'L': 'l0'}
+    def set_evidence_hard(self, RV, state):
+        """Set hard evidence on a variable.
+    
+        This corresponds to setting the likelihood of the provided state to 1
+        and the likelihood of all other states to 0.
         """
-        qd, qv, gd, gv = self._parse_query_string(query_string)
-        return self.compute_posterior(qd, qv, gd, gv)
+        self.junction_tree.set_evidence_hard(RV, state)
 
-    def EM_learning(self, data, reset_CPTs=True):
-        """Perform parameter learning.
+    def get_probability(self, RV):
+        return self.junction_tree.get_probability(RV)
 
-        Sources:
-            * https://www.cse.ust.hk/bnbook/pdf/l07.h.pdf
-            * https://www.youtube.com/watch?v=NDoHheP2ww4
-        """
-        pass
+    def get_probabilities(self, RVs=None):
+        return self.junction_tree.get_probabilities(RVs)
 
-    # --- methods for serialization ---
+
+    # --- constructors ---
+    @classmethod
+    def from_CPTs(cls, name, CPTs):
+        """Create a Bayesian Network from a list of CPTs."""
+        nodes = {}
+        edges = []
+
+        for cpt in CPTs:
+            RV = cpt.conditioned[0]
+            node = DiscreteNetworkNode(RV)
+
+            for parent_RV in cpt.conditioning:
+                edges.append((parent_RV, RV))
+
+            nodes[RV] = node
+
+        bn = BayesianNetwork(name, nodes.values(), edges)
+
+        for cpt in CPTs:
+            RV = cpt.conditioned[0]            
+            bn[RV].cpt = cpt
+
+        return bn
+
+    # --- visualization ---    
+    def draw(self):
+        """Draw the BN using networkx & matplotlib."""
+        nx.draw(self.as_networkx(), with_labels=True)
+
+    # --- (de)serialization and conversion ---
+    def as_networkx(self):
+        G = nx.DiGraph()
+        G.add_edges_from(self.edges)
+        return G
+
     def as_dict(self):
         """Return a dict representation of this Bayesian Network."""
         return {
             'type': 'BayesianNetwork',
             'name': self.name,
+            'nodes': [n.as_dict() for n in self.nodes.values()],
             'edges': self.edges,
-            'nodes': [n.as_dict() for n in self._factors]
         }
 
     def as_json(self, pretty=False):
@@ -366,7 +394,8 @@ class BayesianNetwork(Bag):
         """Return a Bayesian Network initialized by its dict representation."""
         name = d.get('name')
         nodes = [Node.from_dict(n) for n in d['nodes']]
-        return BayesianNetwork(name, nodes)
+        edges = d.get('edges')
+        return BayesianNetwork(name, nodes, edges)
 
     @classmethod
     def from_json(cls, json_str):
@@ -379,4 +408,5 @@ class BayesianNetwork(Bag):
         with open(filename) as fp:
             data = fp.read()
             return cls.from_json(data)
+
 

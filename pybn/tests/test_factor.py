@@ -90,6 +90,17 @@ class TestFactor(unittest.TestCase):
         # Make sure we did this right :-)
         self.assertAlmostEquals(total, 1.00, places=2)
 
+    def test_project(self):
+        """Test the `project` function."""
+        fA, fB_A, fC_B = pybn.examples.get_example7_factors()
+        fAfB = fA * fB_A
+        fBfC = fAfB.sum_out('A') * fC_B
+
+        fC = fBfC.project({'C'})
+        self.assertAlmostEquals(fC['c0'], 0.624, places=8)
+        self.assertAlmostEquals(fC['c1'], 0.376, places=8)
+        self.assertAlmostEquals(fC.sum(), 1, places=8)
+
     def test_serialization_simple(self):
         """Test the JSON serialization."""
         [fA, fB_A, fC_A, fD_BC, fE_C] = bn.examples.get_sprinkler_factors()

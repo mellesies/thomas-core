@@ -116,6 +116,13 @@ class CPT(Factor):
             </div>
         """
 
+    def normalize(self):
+        """Normalize the factor so the sum of all values is 1."""
+        if len(self.conditioning) >= 1:
+            return self.__class__(self._data / self._data.unstack().sum(axis=1))
+
+        return self.__class__(self._data / self._data.sum())
+
     def reorder_scope(self, order=None):
         return CPT(
             super().reorder_scope(order),

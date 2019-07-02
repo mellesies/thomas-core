@@ -137,12 +137,13 @@ def run_tests(suites):
   result = TestRunner(log, verbosity=2).run(suites)
   log.info(result)
   print()
-
+  return(result)
 
 def run():
   suites = find_tests()
-  run_tests(suites)
+  return run_tests(suites)
 
 if __name__ == '__main__':
-    run()
+    result = run()
+    sys.exit(not result.wasSuccessful())
     

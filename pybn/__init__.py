@@ -18,7 +18,7 @@ import json
 
 from .factors.factor import Factor
 from .factors.cpt import CPT
-from .factors.node import Node
+from .factors.node import Node, DiscreteNetworkNode
 
 from .collections.bag import Bag
 from .collections.bayesiannetwork import BayesianNetwork
