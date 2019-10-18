@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """Example Bayesian networks."""
+import os
 
 import numpy as np
 import pandas as pd
 
+import pybn
 from pybn import Factor, CPT, DiscreteNetworkNode, BayesianNetwork
 
 def subset(full_dict, keys):
@@ -150,3 +152,8 @@ def get_example7_network():
 
     bn = BayesianNetwork('class', [nA, nB, nC])
 
+def get_lungcancer_network():
+    pkg_path = os.path.dirname(pybn.__file__)
+    filename = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
+
+    return pybn.reader.oobn.read(filename)

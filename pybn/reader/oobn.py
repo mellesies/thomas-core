@@ -219,11 +219,11 @@ def _create_structure(tree):
             data = data.reshape(-1, len(columns))
             df = pd.DataFrame(data, index=index, columns=columns)
 
-            print('-' * 80)
-            print(name)
-            print('-' * 80)
-            print(df.head())
-            print()
+            # print('-' * 80)
+            # print(name)
+            # print('-' * 80)
+            # print(df.head())
+            # print()
             # print(df.stack().head())
             # print()
 
