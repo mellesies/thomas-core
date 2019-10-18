@@ -7,6 +7,8 @@ import itertools
 from collections import OrderedDict
 
 import networkx as nx
+import networkx.algorithms.moral
+
 import numpy as np
 import pandas as pd
 from pandas.core.dtypes.dtypes import CategoricalDtype
@@ -26,19 +28,133 @@ from .junctiontree import JunctionTree, TreeNode
 from .. import error
 
 
+def get_fill_in_edges(edges, order, fill_in=None):
+    """Recursively compute the clusters for the elimination tree."""
+    # Make sure we're not modifying the method argument.
+    if fill_in is None:
+        fill_in = list()
+
+    order = list(order)
+
+    if order == []:
+        return fill_in
+
+    # Reconstruct the graph
+    G = nx.Graph()
+    G.add_nodes_from(order)
+    G.add_edges_from(edges)
+
+    node = order.pop(0)
+
+    # Make sure the neighbors from `node` are connected by adding fill-in
+    # edges.
+    neighbors = list(G.neighbors(node))
+
+    if len(neighbors) > 1:
+        for outer_idx in range(len(neighbors)):
+            n1 = neighbors[outer_idx]
+
+            for inner_idx in range(outer_idx+1, len(neighbors)):
+                n2 = neighbors[inner_idx]
+                G.add_edge(n1, n2)
+                fill_in.append((n1, n2))
+
+    G.remove_node(node)
+    cluster = set([node, ] + neighbors)
+
+    return get_fill_in_edges(G.edges, order, fill_in)
+
+def get_cluster_sequence(edges, order):
+    """Recursively compute the clusters for the elimination tree."""
+    # Make sure we're not modifying the method argument.
+    order = list(order)
+
+    if not len(order):
+        return []
+
+    # Reconstruct the graph
+    G = nx.Graph()
+    G.add_nodes_from(order)
+    G.add_edges_from(edges)
+
+    node = order.pop(0)
+
+    # Make sure the neighbors from `node` are connected by adding fill-in
+    # edges.
+    neighbors = list(G.neighbors(node))
+
+    if len(neighbors) > 1:
+        for outer_idx in range(len(neighbors)):
+            n1 = neighbors[outer_idx]
+
+            for inner_idx in range(outer_idx+1, len(neighbors)):
+                n2 = neighbors[inner_idx]
+                G.add_edge(n1, n2)
+
+    G.remove_node(node)
+    cluster = set([node, ] + neighbors)
+
+    return [cluster, ] + get_cluster_sequence(G.edges, order)
+
+def running_intersection(clusters):
+    for idx_i, C_i in enumerate(clusters[:-1]):
+        right_union = set.union(*clusters[idx_i+1:])
+        intersection = C_i.intersection(right_union)
+
+        print(f'idx_i:        {idx_i}')
+        print(f'cluster:      {C_i}')
+        print(f'right_union:  {right_union}')
+        print(f'intersection: {intersection}')
+
+        for c in clusters[idx_i+1:]:
+            if intersection.issubset(c):
+                print(f'contained in: {c}')
+                break
+
+        print()
+
+
+def merge_clusters(clusters):
+    clusters = list(clusters)
+    should_continue = True
+
+    while should_continue:
+        should_continue = False
+
+        for idx_i in range(len(clusters)):
+            modified = False
+            C_i = clusters[idx_i]
+
+            for idx_j in range(idx_i+1, len(clusters)):
+                C_j = clusters[idx_j]
+
+                if C_j.issubset(C_i):
+                    clusters[idx_j] = C_i
+                    clusters.pop(idx_i)
+
+                    modified = True
+                    should_continue = len(clusters) > 1
+                    break
+
+            if modified:
+                break
+
+    return clusters
+
+
 # ------------------------------------------------------------------------------
 # BayesianNetwork
 # ------------------------------------------------------------------------------
 class BayesianNetwork(object):
     """A Bayesian Network (BN) consistst of Nodes and directed Edges.
 
-    A BN is essentially a Directed Acyclic Graph (DAG) where each Node 
-    represents a Random Variable (RV) and is associated with a conditional 
-    probability table (CPT). A CPT can only have a *single* conditioned 
-    variable; zero or more *conditioning*  variables are allowed. Conditioning 
+    A BN is essentially a Directed Acyclic Graph (DAG) where each Node
+    represents a Random Variable (RV) and is associated with a conditional
+    probability theable (CPT). A CPT can only have a *single* conditioned
+    variable; zero or more *conditioning*  variables are allowed. Conditioning
     variables are represented as the Node's parents.
 
-    BNs can be used for inference. To do this efficiently, the BN first 
+    BNs can be used for inference. To do this efficiently, the BN first
     constructs a JunctionTree (or JoinTree).
 
     Because of the relation between the probaility distribution (expressed as a
@@ -66,6 +182,8 @@ class BayesianNetwork(object):
             if edges:
                 self.add_edges(edges)
 
+        self.elimination_order = None
+
         # Cached junction tree
         self._jt = None
 
@@ -92,7 +210,7 @@ class BayesianNetwork(object):
                 edges.append((n.RV, c.RV))
 
         return edges
-    
+
     @property
     def junction_tree(self):
         """Return the junction tree for this network."""
@@ -100,12 +218,54 @@ class BayesianNetwork(object):
             self._jt = self._compute_junction_tree()
 
         return self._jt
-    
+
     @property
     def states(self):
+        """Return a dict of states, indexed by random variable."""
         return {RV: self.nodes[RV].states for RV in self.nodes}
 
     # --- semi-private ---
+    def _get_elimination_clusters(self, edges=None, order=None):
+        """Compute the clusters for the elimination tree."""
+
+        # Get the full set of clusters.
+        clusters = self._get_elimination_clusters_rec(edges=edges, order=order)
+
+        # Merge clusters that are contained in other clusters by iterating over
+        # the full set and replacing the smaller with the larger clusters.
+        merged = list(clusters)
+        clusters = list(clusters)
+
+        # We should merge later clusters into earlier clusters.
+        # The reversion is undone just before the function returns.
+        clusters.reverse()
+
+        should_continue = len(clusters) > 1
+        while should_continue:
+            should_continue = False
+
+            for idx_i in range(len(clusters)):
+                modified = False
+                C_i = clusters[idx_i]
+
+                for idx_j in range(idx_i+1, len(clusters)):
+                    C_j = clusters[idx_j]
+
+                    if C_i.issubset(C_j):
+                        clusters[idx_i] = C_j
+                        clusters.pop(idx_j)
+
+                        modified = True
+                        should_continue = len(clusters) > 1
+                        break
+
+                if modified:
+                    break
+
+        # Undo the earlier reversion.
+        clusters.reverse()
+        return clusters
+
     def _get_elimination_clusters_rec(self, edges=None, order=None):
         """Recursively compute the clusters for the elimination tree."""
         if edges is None:
@@ -113,6 +273,10 @@ class BayesianNetwork(object):
 
         if order is None:
             order = self.get_node_elimination_order()
+
+        # Make sure we're not modifying the method argument.
+        order = list(order)
+        # print(f'using elimination_order: {order}')
 
         if not len(order):
             return []
@@ -124,7 +288,8 @@ class BayesianNetwork(object):
 
         node = order.pop(0)
 
-        # Make sure the neighbors from `node` are connected
+        # Make sure the neighbors from `node` are connected by adding fill-in
+        # edges.
         neighbors = list(G.neighbors(node))
 
         if len(neighbors) > 1:
@@ -140,51 +305,11 @@ class BayesianNetwork(object):
 
         return [cluster, ] + self._get_elimination_clusters_rec(G.edges, order)
 
-    def _get_elimination_clusters(self, edges=None, order=None):
-        """Compute the clusters for the elimination tree."""
-
-        # Get the full set of clusters.
-        clusters = self._get_elimination_clusters_rec(edges=edges, order=order)
-
-        # Merge clusters that are contained in other clusters by iterating over
-        # the full set and replacing the smaller with the larger clusters.
-        merged = list(clusters)
-
-        for _ in clusters:
-            for outer_idx, outer_cluster in enumerate(merged):
-                modified = False
-
-                for inner_idx, inner_cluster in enumerate(merged):
-                    if outer_idx == inner_idx:
-                        continue
-
-                    if inner_cluster.issubset(outer_cluster):
-                        # print(inner_cluster, 'is a subset of', outer_cluster)
-                        modified = True
-                        break
-
-                if modified:
-                    # Break from the *middle* for loop.
-                    break
-
-            if modified:
-                # We'll have to replace inner_cluster with outer_cluster to
-                # maintain the running intersection property.
-                merged[inner_idx] = merged[outer_idx]
-                del merged[outer_idx]
-
-            else:
-                # Nothing was modified this iteration: it seems we're done.
-                # Break from the *outermost* loop.
-                break
-
-        return merged
-    
-    def _compute_junction_tree(self):
+    def _compute_junction_tree(self, order=None):
         """Compute the junction tree for the current graph."""
 
         # First, create the JT itself.
-        clusters = self._get_elimination_clusters()
+        clusters = self._get_elimination_clusters(order=order)
         tree = JunctionTree(clusters)
 
         nodes = list(tree.nodes.values())
@@ -197,18 +322,30 @@ class BayesianNetwork(object):
             remaining_nodes = nodes[idx+1:]
 
             if remaining_nodes:
-                remaining_clusters = [n.cluster for n in remaining_nodes]                
+                remaining_clusters = [n.cluster for n in remaining_nodes]
                 intersection = C_i.intersection(set.union(*remaining_clusters))
+
+                found = False
 
                 for node_j in remaining_nodes:
                     C_j = node_j.cluster
 
                     if intersection.issubset(C_j):
                         tree.add_edge(node_i, node_j)
+                        found = True
                         break
 
-        # Iterate over all nodes in the BN to assign each BN node/CPT to the 
-        # first JT node that contains the BN node's RV. Also, assign an evidence 
+                if not found:
+                    print('*** WARNING ***')
+                    print('Could not add node_i: ', node_i)
+                    print('C_i:', C_i)
+                    print('remaining_clusters:')
+                    for r in remaining_clusters:
+                        print('  ', r)
+                    print()
+
+        # Iterate over all nodes in the BN to assign each BN node/CPT to the
+        # first JT node that contains the BN node's RV. Also, assign an evidence
         # indicator for that variable to that JT node.
         # Any other JT node that contains the BN node's RV, should be given the
         # trivial factor (all 1s).
@@ -228,18 +365,73 @@ class BayesianNetwork(object):
                     indicator = Factor(1, variable_states=states)
                     tree.add_indicator(indicator, tree_node)
                     break
-                                
-        # Iterate over the JT nodes/clusters to make sure each cluster has 
+
+        # Iterate over the JT nodes/clusters to make sure each cluster has
         # the correct factors assigned.
         # FIXME: I think this is superfluous for minimal JTs?
-        # for tree_node in nodes:
-        #     for missing in (tree_node.cluster - tree_node.joint.vars):
-        #         node = self.nodes[missing]
-        #         states = {node.RV: node.states}
-        #         trivial = Factor(1, variable_states=states)
-        #         tree_node.add_factor(trivial)
+        for tree_node in nodes:
+            try:
+                for missing in (tree_node.cluster - tree_node.vars):
+                    node = self.nodes[missing]
+                    states = {node.RV: node.states}
+                    trivial = Factor(1, variable_states=states)
+                    tree_node.add_factor(trivial)
+            except:
+                print('*** WARNING ***')
+                print('tree_node.cluster:', tree_node.cluster)
+                print('tree_node.vars:', tree_node.vars)
 
         return tree
+
+    # --- testing only
+    def FE1(self, Q, order=None):
+        if order is None:
+            order = self.nodes.keys()
+
+        # Don't modify the original list
+        order = list(order)
+
+        # Transform the network into a list of CPTs
+        S = [self.nodes[n].cpt for n in order]
+
+        # Find a node that has Q in it and assign it as root
+        for cpt in S:
+            if Q in cpt.scope:
+                root = cpt
+                # print(f'Using node {root.display_name} as root')
+                break
+
+        # Move the root node to the end/beginning.
+        # This saves some checking later.
+        S.remove(root)
+        S.append(root)
+        S.reverse()
+
+        while len(S) > 1:
+            f_i = S.pop()
+            # print(f'Removed factor {f_i.display_name} from S')
+
+            vars_in_S = set()
+            for cpt in S:
+                vars_in_S = vars_in_S | cpt.vars
+
+            V = f_i.vars - vars_in_S
+
+            if len(V):
+                # print(f'Summing out {V}')
+                f_i = f_i.sum_out(V)
+            else:
+                # print('No variables to sum out ...')
+                pass
+
+            f_j = S[-1]
+
+            # print(f'Multiplying {f_i.display_name} into {f_j.display_name}')
+
+            S[-1] = f_j * f_i
+            # print()
+
+        return S[0].project(Q)
 
     # --- graph manipulation ---
     def add_nodes(self, nodes):
@@ -253,43 +445,30 @@ class BayesianNetwork(object):
         """Recreate the edges using the nodes' CPTs."""
         for (parent_RV, child_RV) in edges:
             self.nodes[parent_RV].add_child(self.nodes[child_RV])
-    
+
         self._jt = None
 
-    # --- inference ---
     def moralize_graph(self):
-        """Return the moral graph.
+        """Return the moral graph."""
+        G = self.as_networkx()
+        G_moral = nx.algorithms.moral.moral_graph(G)
+        return list(G_moral.edges)
 
-        FIXME: NetworkX has a method for this.    
-        """
-        edges = []
-
-        for node in self.nodes.values():
-            # Copy the list of parents
-            parents = list(node._parents)
-
-            edges += [(p.RV, node.RV) for p in parents]
-
-            for outer_idx in range(len(parents)):
-                p1 = parents[outer_idx]
-
-                for inner_idx in range(outer_idx+1, len(parents)):
-                    p2 = parents[inner_idx]
-                    edges.append((p1.RV, p2.RV))
-
-        return edges
-
+    # --- inference ---
     def get_node_elimination_order(self):
         """Return a naïve elimination ordering."""
-        G = nx.Graph()
-        G.add_edges_from(self.moralize_graph())
+        if self.elimination_order is None:
+            G = nx.Graph()
+            G.add_edges_from(self.moralize_graph())
 
-        degrees = list(G.degree)
-        degrees.sort(key=lambda x: x[1])
+            degrees = list(G.degree)
+            degrees.sort(key=lambda x: x[1])
 
-        return [d[0] for d in degrees]
+            self.elimination_order = [d[0] for d in degrees]
 
-    def compute_posterior(self, query_dist, evidence_values=None):
+        return self.elimination_order
+
+    def compute_posterior(self, query_dist=None, evidence_values=None):
         """Compute the probability of the query variables given the evidence.
 
         :param tuple query_dist: Random variable to query
@@ -298,7 +477,7 @@ class BayesianNetwork(object):
         """
         if evidence_values is None:
             evidence_values = {}
-        
+
         # Reset the tree and apply evidence
         self.junction_tree.reset_evidence()
 
@@ -307,7 +486,6 @@ class BayesianNetwork(object):
 
         return self.junction_tree.get_probabilities(query_dist)
 
-    
     def reset_evidence(self, RV=None):
         """Reset evidence for one or more RVs."""
         self.junction_tree.reset_evidence(RV)
@@ -318,7 +496,7 @@ class BayesianNetwork(object):
 
     def set_evidence_hard(self, RV, state):
         """Set hard evidence on a variable.
-    
+
         This corresponds to setting the likelihood of the provided state to 1
         and the likelihood of all other states to 0.
         """
@@ -328,7 +506,45 @@ class BayesianNetwork(object):
         return self.junction_tree.get_probability(RV)
 
     def get_probabilities(self, RVs=None):
+        """Return the probabilities for a set off/all RVs given set evidence."""
         return self.junction_tree.get_probabilities(RVs)
+
+    def _complete_case(self, case):
+        """..."""
+        missing = list(case[case.isna()].index)
+        evidence = [e for e in case.index if e not in missing]
+
+        try:
+            probabilities = self.compute_posterior(
+                missing,
+                case.to_dict()
+            )
+        except error.InvalidStateError as e:
+            print('WARNING - Could not complete case:', e)
+            return np.NaN
+
+        # Creata a dataframe by repeating the evicence multiple times
+        imputated = pd.DataFrame([case[evidence]] * len(jpt), index=jpt.index)
+
+        # The combinations of missing variables are in the index. Reset the
+        # index to make them part of the dataframe.
+        imputated = imputated.reset_index()
+
+        # Add the computed probabilities as weights
+        imputated.loc[:, 'weight'] = jpt.values
+
+        return imputated
+
+    def _complete_cases(self, incomplete_cases):
+        # Create a dataframe that holds *all* unique cases. This way we can
+        # complete these cases once and then just count their frequency.
+
+        # drop_duplicates() will work fine with NaNs
+        unique_cases = incomplete_cases.drop_duplicates().reset_index(drop=True)
+
+        # apply() yields a Series where each entry holds a DataFrame.
+        dfs = unique_cases.apply(self._complete_case, axis=1)
+        dfs = dfs.dropna()
 
 
     # --- constructors ---
@@ -350,12 +566,12 @@ class BayesianNetwork(object):
         bn = BayesianNetwork(name, nodes.values(), edges)
 
         for cpt in CPTs:
-            RV = cpt.conditioned[0]            
+            RV = cpt.conditioned[0]
             bn[RV].cpt = cpt
 
         return bn
 
-    # --- visualization ---    
+    # --- visualization ---
     def draw(self):
         """Draw the BN using networkx & matplotlib."""
         # nx.draw(self.as_networkx(), with_labels=True)
@@ -364,11 +580,12 @@ class BayesianNetwork(object):
         pos = nx.spring_layout(nx_tree)
 
         nx.draw(
-            nx_tree, 
-            pos, 
-            edge_color='black', 
-            width=1, 
-            linewidths=1, 
+            nx_tree,
+            pos,
+            edge_color='black',
+            font_color='white',
+            width=1,
+            linewidths=1,
             node_size=1500,
             node_color='purple',
             alpha=1.0,

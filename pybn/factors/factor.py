@@ -19,7 +19,7 @@ from .. import error as e
 # ------------------------------------------------------------------------------
 # Helper functions.
 # ------------------------------------------------------------------------------
-def mul(x1, x2, debug=False): 
+def mul(x1, x2, debug=False):
     """Multiply two Factors with each other.
 
     Helper function for functools.reduce().
@@ -47,7 +47,7 @@ def mul(x1, x2, debug=False):
         else:
             result = x1 * x2
 
-    except Exception as e: 
+    except Exception as e:
         print('-' * 80)
         print(e)
         print('-' * 80)
@@ -86,8 +86,8 @@ class Factor(object):
 
         Args:
             data (list, pandas.Series, Factor): array of values.
-            variable_states (dict): list of allowed states for each random 
-                variable, indexed by name. If variable_states is None, `data` 
+            variable_states (dict): list of allowed states for each random
+                variable, indexed by name. If variable_states is None, `data`
                 should be a pandas.Series with a proper Index/MultiIndex.
         """
         if variable_states:
@@ -98,7 +98,7 @@ class Factor(object):
             # {'I': ['i0', 'i1']} --> {'I': ['I.i0', 'I.i1']}
             idx = pybn.add_prefix_to_index(idx)
 
-        elif (isinstance(data, pd.Series) 
+        elif (isinstance(data, pd.Series)
             and isinstance(data.index, (pd.Index, pd.MultiIndex))):
                 # TODO: should we make sure that the index is prefixed?
                 data = data.copy()
@@ -118,7 +118,7 @@ class Factor(object):
 
         if np.issubdtype(type(data), np.integer):
             data = float(data)
-            
+
         self._data = pd.Series(data, index=idx)
         self._variable_states = variable_states
 
@@ -143,7 +143,7 @@ class Factor(object):
 
         # It seems the entire prefix-thing is completely unnecessary
         # scope = self.scope
-        # 
+        #
         # if isinstance(key, str):
         #     key = f'{scope[0]}.{key}'
         #
@@ -169,12 +169,12 @@ class Factor(object):
     def index(self):
         """Return the Factor index (without prefixes)."""
         return self._data_without_prefix.index
-    
+
     @property
     def values(self):
         """Return the factor values as an np.array"""
         return self._data.values
-    
+
     @classmethod
     def _index_from_variable_states(cls, variable_states):
         """Create an pandas.Index or pandas.MultiIndex from a dictionary."""
@@ -190,7 +190,7 @@ class Factor(object):
 
         else:
             idx = pd.MultiIndex.from_product(
-                variable_states.values(), 
+                variable_states.values(),
                 names=variable_states.keys()
             )
 
@@ -255,7 +255,7 @@ class Factor(object):
         me = self.reorder_scope()
 
         if len(me) == 1 and len(other) == 1:
-            # Pandas has the nasty habit to mess up multiindexes when 
+            # Pandas has the nasty habit to mess up multiindexes when
             # multiplying two Series with a single row. At that point, order
             # suddenly becomes important (i.e. s1 * s2 != s2 * s1) and the index
             # of the first Series is reused. The code below is to make sure
@@ -265,7 +265,7 @@ class Factor(object):
             names = [n for n in i2.names if n not in i1.names]
 
             if not names:
-                # Apparently all levels of the index made it to the result. 
+                # Apparently all levels of the index made it to the result.
                 # We're done.
                 return Factor(multiplied)
 
@@ -274,7 +274,7 @@ class Factor(object):
             # first item from the level values
             keys = [i2.get_level_values(n)[0] for n in names]
 
-            # We're creating an index for a single row: tuple(keys) is the 
+            # We're creating an index for a single row: tuple(keys) is the
             # actual index.
             keys = [tuple(keys)]
             concatted = pd.concat([multiplied], keys=keys, names=names)
@@ -308,7 +308,7 @@ class Factor(object):
             other_scope = set(other.scope)
         else:
             other_scope = set(other)
-            
+
         return len(own_scope.intersection(other_scope)) > 0
 
     @property
@@ -393,6 +393,9 @@ class Factor(object):
         else:
             variable_set = set(variable)
 
+        # if len(variable_set) == 0:
+        #     return Factor(self)
+
         scope = set(self.scope)
 
         if not variable_set.issubset(scope):
@@ -403,7 +406,14 @@ class Factor(object):
 
         # Unstack the requested variables into columns and sum over them.
         unstacked = self._data.unstack(tuple(variable_set))
-        summed = unstacked.sum(axis=1)
+
+        try:
+            summed = unstacked.sum(axis=1)
+        except:
+            print('*** ERROR ***')
+            print(f'Could not sum out {variable_set}')
+            print(unstacked)
+            raise
 
         return Factor(summed)
 
@@ -413,7 +423,7 @@ class Factor(object):
 
     def unstack(self, *args, **kwargs):
         """Proxy for pd.Series.unstack()."""
-        # FIXME: unstack leaks index prefixes ... 
+        # FIXME: unstack leaks index prefixes ...
         return self._data.unstack(*args, **kwargs)
 
     def dot(self, other):
@@ -428,7 +438,7 @@ class Factor(object):
         """Return the outer product."""
         df = pd.DataFrame(
             np.outer(self._data, other._data),
-            index=self._data.index, 
+            index=self._data.index,
             columns=other._data.index
         )
 
@@ -459,7 +469,7 @@ class Factor(object):
         Return a reduced factor.
         """
 
-        # when called like set_evidence(D='d1', E='e0'), we'll need to 
+        # when called like set_evidence(D='d1', E='e0'), we'll need to
         # set rows that do not correspond to the evidence to zero.
 
         kwargs = pybn.add_prefix_to_dict(kwargs)
@@ -499,7 +509,7 @@ class Factor(object):
         if self.width > 1:
             data = data.reorder_levels(self.scope)
 
-        # Remove any prefixes ... 
+        # Remove any prefixes ...
         idx = pybn.remove_prefix_from_index(data.index)
         variable_states = self.variable_states
 
@@ -509,6 +519,12 @@ class Factor(object):
             'variable_states': variable_states,
             'data': data.to_list(),
         }
+
+    def zipped(self):
+        index = list(self.index)
+        data = self._data
+
+        return dict(zip(index, data.to_list()))
 
     @classmethod
     def from_dict(cls, d):

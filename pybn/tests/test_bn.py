@@ -2,18 +2,16 @@
 import unittest
 import doctest
 import logging
+import itertools
 
 import pybn
 import pybn.examples
 
 log = logging.getLogger(__name__)
 
-# def load_tests(loader, tests, ignore):
-#     # tests.addTests(doctest.DocTestSuite(...))
-#     return tests
 
 class TestBayesianNetwork(unittest.TestCase):
-    
+
     def setUp(self):
         self.Gs = pybn.examples.get_student_network()
         self.maxDiff = None
@@ -28,10 +26,11 @@ class TestBayesianNetwork(unittest.TestCase):
 
     def test_priors(self):
         """Test computation of a BN's prior probabilities for the nodes."""
+        self.Gs.reset_evidence()
         priors = self.Gs.get_probabilities()
 
         D = priors['D']
-        self.assertAlmostEquals(D['d0'], 0.6)        
+        self.assertAlmostEquals(D['d0'], 0.6)
         self.assertAlmostEquals(D['d1'], 0.4)
         self.assertAlmostEquals(D.sum(), 1)
 
@@ -47,7 +46,7 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEquals(G.sum(), 1)
 
         S = priors['S']
-        self.assertAlmostEquals(S['s0'], 0.725)        
+        self.assertAlmostEquals(S['s0'], 0.725)
         self.assertAlmostEquals(S['s1'], 0.275)
         self.assertAlmostEquals(S.sum(), 1)
 
@@ -56,10 +55,129 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEquals(L['l1'], 0.502, places=3)
         self.assertAlmostEquals(L.sum(), 1)
 
-    def test_compute_posterior(self):
-        """Test computation of a BN's probabilities for the nodes given 
+    def test_compute_posterior_student(self):
+        """Test computation of a BN's probabilities for the nodes given
         evidence.
+        """
+        places = 4
 
+        def set_i0():
+            self.Gs.reset_evidence()
+            self.Gs.set_evidence_hard('I', 'i0')
+
+            priors = self.Gs.get_probabilities()
+
+            I = priors['I']
+            self.assertAlmostEquals(I['i0'], 1.0)
+            self.assertAlmostEquals(I['i1'], 0.0)
+            self.assertAlmostEquals(I.sum(), 1)
+
+            D = priors['D']
+            self.assertAlmostEquals(D['d0'], 0.6)
+            self.assertAlmostEquals(D['d1'], 0.4)
+            self.assertAlmostEquals(D.sum(), 1)
+
+            G = priors['G']
+            self.assertAlmostEquals(G['g1'], 0.20)
+            self.assertAlmostEquals(G['g2'], 0.34)
+            self.assertAlmostEquals(G['g3'], 0.46)
+            self.assertAlmostEquals(G.sum(), 1)
+
+            L = priors['L']
+            self.assertAlmostEquals(L['l0'], 0.6114)
+            self.assertAlmostEquals(L['l1'], 0.3886)
+            self.assertAlmostEquals(L.sum(), 1)
+
+            S = priors['S']
+            self.assertAlmostEquals(S['s0'], 0.950)
+            self.assertAlmostEquals(S['s1'], 0.050)
+            self.assertAlmostEquals(S.sum(), 1)
+
+        def add_d0():
+            self.Gs.set_evidence_hard('D', 'd0')
+            priors = self.Gs.get_probabilities()
+
+            I = priors['I']
+            self.assertAlmostEquals(I['i0'], 1.0)
+            self.assertAlmostEquals(I['i1'], 0.0)
+            self.assertAlmostEquals(I.sum(), 1)
+
+            D = priors['D']
+            self.assertAlmostEquals(D['d0'], 1.0)
+            self.assertAlmostEquals(D['d1'], 0.0)
+            self.assertAlmostEquals(D.sum(), 1)
+
+            G = priors['G']
+            self.assertAlmostEquals(G['g1'], 0.30)
+            self.assertAlmostEquals(G['g2'], 0.40)
+            self.assertAlmostEquals(G['g3'], 0.30)
+            self.assertAlmostEquals(G.sum(), 1)
+
+            L = priors['L']
+            self.assertAlmostEquals(L['l0'], 0.4870)
+            self.assertAlmostEquals(L['l1'], 0.5130)
+            self.assertAlmostEquals(L.sum(), 1)
+
+            S = priors['S']
+            self.assertAlmostEquals(S['s0'], 0.950)
+            self.assertAlmostEquals(S['s1'], 0.050)
+            self.assertAlmostEquals(S.sum(), 1)
+
+        def reset_set_g1():
+            self.Gs.reset_evidence()
+            self.Gs.set_evidence_hard('G', 'g1')
+            priors = self.Gs.get_probabilities()
+
+            I = priors['I']
+            self.assertAlmostEquals(I['i0'], 0.3867, places=places)
+            self.assertAlmostEquals(I['i1'], 0.6133, places=places)
+            self.assertAlmostEquals(I.sum(), 1)
+
+            D = priors['D']
+            self.assertAlmostEquals(D['d0'], 0.7956, places=places)
+            self.assertAlmostEquals(D['d1'], 0.2044, places=places)
+            self.assertAlmostEquals(D.sum(), 1)
+
+            G = priors['G']
+            self.assertAlmostEquals(G['g1'], 1.0, places=places)
+            self.assertAlmostEquals(G['g2'], 0.0, places=places)
+            self.assertAlmostEquals(G['g3'], 0.0, places=places)
+            self.assertAlmostEquals(G.sum(), 1)
+
+            L = priors['L']
+            self.assertAlmostEquals(L['l0'], 0.10, places=places)
+            self.assertAlmostEquals(L['l1'], 0.90, places=places)
+            self.assertAlmostEquals(L.sum(), 1)
+
+            S = priors['S']
+            self.assertAlmostEquals(S['s0'], 0.4901, places=places)
+            self.assertAlmostEquals(S['s1'], 0.5099, places=places)
+            self.assertAlmostEquals(S.sum(), 1)
+
+        set_i0()
+        add_d0()
+        reset_set_g1()
+
+    def test_elimination_order_importance(self):
+        self.Gs.reset_evidence()
+
+        nodes = list(self.Gs.nodes.keys())
+
+        for order in itertools.permutations(nodes):
+            self.Gs._jt = None
+            self.Gs.elimination_order = order
+
+            priors = self.Gs.get_probabilities()
+            L = priors['L']
+            self.assertAlmostEquals(L['l0'], 0.498, places=3)
+            self.assertAlmostEquals(L['l1'], 0.502, places=3)
+
+        self.Gs.elimination_order = None
+
+
+    def test_compute_posterior_student_alt(self):
+        """Test computation of a BN's probabilities for the nodes given
+        evidence.
         """
         # P(I)
         I = self.Gs.compute_posterior(['I'])['I']

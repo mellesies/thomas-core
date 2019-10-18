@@ -6,14 +6,14 @@ from functools import reduce
 from . import ProbabilisticModel
 
 from ..util import sep
-from ..factors.factor import mul
+from ..factors.factor import mul, Factor
 # ------------------------------------------------------------------------------
 # JunctionTree
 # ------------------------------------------------------------------------------
 class JunctionTree(object):
     """JunctionTree for a BayesianNetwork.
 
-    
+
     The tree consists of TreeNodes and TreeEdges.
     """
 
@@ -26,11 +26,11 @@ class JunctionTree(object):
         self.nodes = {}      # TreeNode, indexed by cluster.label
         self.edges = []
         self.indicators = {} # evidence indicators; indexed by RV
-        self._RVs = {}       # TreeNode, indexed by RV and 
+        self._RVs = {}       # TreeNode, indexed by RV and
 
         for c in self.clusters:
             self.add_node(c)
-    
+
     def get_node_for_RV(self, RV):
         """A[x] <==> A.__getitem__(x)"""
         return self._RVs[RV]
@@ -43,6 +43,7 @@ class JunctionTree(object):
         return self.get_node_for_RV(RV).project(RV)
 
     def get_probabilities(self, RVs=None):
+        """Return the probabilities for a set off/all RVs given set evidence."""
         if RVs is None:
             RVs = self._RVs
 
@@ -50,6 +51,9 @@ class JunctionTree(object):
 
     def add_node(self, cluster, factors=None, evidence=False):
         """Add a node to the tree."""
+
+        # FIXME: I don't think `evidence` is ever set to True in the
+        #        current implementation.
         if evidence:
             node = EvidenceNode(cluster, factors)
         else:
@@ -106,7 +110,7 @@ class JunctionTree(object):
 
     def set_evidence_hard(self, RV, state):
         """Set hard evidence on a variable.
-    
+
         This corresponds to setting the likelihood of the provided state to 1
         and the likelihood of all other states to 0.
         """
@@ -135,7 +139,7 @@ class JunctionTree(object):
         for n in self.nodes.values():
             n.pull()
 
-    def compute_posterior(self, query_dist, query_values, evidence_dist, 
+    def compute_posterior(self, query_dist, query_values, evidence_dist,
         evidence_values, **kwargs):
         """Compute the probability of the query variables given the evidence.
 
@@ -171,11 +175,11 @@ class JunctionTree(object):
         pos = nx.spring_layout(nx_tree)
 
         nx.draw(
-            nx_tree, 
-            pos, 
-            edge_color='black', 
-            width=1, 
-            linewidths=1, 
+            nx_tree,
+            pos,
+            edge_color='black',
+            width=1,
+            linewidths=1,
             node_size=1500,
             node_color='pink',
             alpha=1.0,
@@ -194,7 +198,7 @@ class JunctionTree(object):
 # ------------------------------------------------------------------------------
 class TreeEdge(object):
     """Edge in an elimination/junction tree."""
-    
+
     def __init__(self, left, right):
         """Initialize a new TreeEdge.
 
@@ -223,7 +227,7 @@ class TreeEdge(object):
             self.recompute_separator()
 
         return self._separator
-    
+
     def get_neighbor(self, node):
         """Return the neighbor for `node`."""
         if node == self._left:
@@ -275,7 +279,7 @@ class TreeNode(object):
     @property
     def label(self):
         """Return the Node's label."""
-        return ','.join(self.cluster) 
+        return ','.join(self.cluster)
 
     @property
     def factors(self):
@@ -286,7 +290,7 @@ class TreeNode(object):
         v = [f.vars for f in self.factors]
         if v:
             return set.union(*v)
-        return {}
+        return set()
 
     @property
     def joint(self):
@@ -294,9 +298,16 @@ class TreeNode(object):
         if self._joint is None:
             factors = self._factors + self.indicators
 
-            # Per documentation for reduce: "If initializer is not given and 
+            # Per documentation for reduce: "If initializer is not given and
             # sequence contains only one item, the first item is returned."
-            self._joint = reduce(mul, factors)
+            try:
+                self._joint = reduce(mul, factors)
+            except:
+                print('*** ERROR ***')
+                print('Error while trying to compute the joint distribution')
+                print(f'Node: {self.cluster}')
+                print(f'Factors:', factors)
+                raise
 
         return self._joint
 
@@ -310,9 +321,9 @@ class TreeNode(object):
         self._joint = None
 
     def invalidate_cache(self):
-        """Invalidate the cache. 
+        """Invalidate the cache.
 
-        This comprises the message cache and the joint distribution for the 
+        This comprises the message cache and the joint distribution for the
         cluster with indicators.
         """
         self._cache = {}
@@ -372,9 +383,12 @@ class TreeNode(object):
 
         if not normalize:
             return result
-            
+
         return result.normalize()
 
+# ------------------------------------------------------------------------------
+# EvidenceNode
+# ------------------------------------------------------------------------------
 class EvidenceNode(TreeNode):
     """Node that can be used to set evidence or compute the prior."""
 

@@ -28,31 +28,35 @@ class Node(object):
     BayesiaLab does allow discrete nodes to have continous nodes as parents by
     associating discrete states with the continous value.
     """
-    
+
     def __init__(self, RV, name=None, description=''):
         """Initialize a new Node.
 
         Args:
             RV (str): Name of the (conditioned) random variable
-            name (str): Name of the Node. 
+            name (str): Name of the Node.
             description (str): Name of the Node
         """
         self.RV = RV
         self.name = name or RV
         self.description = description
 
-        # A node needs to know its parents in order to determine the shape of 
+        # A node needs to know its parents in order to determine the shape of
         # its CPT. This should be a list of Nodes.
         self._parents = []
 
-        # For purposes of message passing, a node also needs to know its 
+        # For purposes of message passing, a node also needs to know its
         # children.
         self._children = []
+
+    @property
+    def parents(self):
+        return self._parents
 
     def add_parent(self, parent, add_child=True):
         """Add a parent to the Node.
 
-        If succesful, the Node's distribution's parameters (ContinousNode) or 
+        If succesful, the Node's distribution's parameters (ContinousNode) or
         CPT (DiscreteNode) should be reset.
 
         Args:
@@ -97,7 +101,7 @@ class Node(object):
     def remove_parent(self, parent, remove_child=True):
         """Remove a parent from the Node.
 
-        If succesful, the Node's distribution's parameters (ContinousNode) or 
+        If succesful, the Node's distribution's parameters (ContinousNode) or
         CPT (DiscreteNode) should be reset.
 
         Return:
@@ -133,16 +137,16 @@ class Node(object):
 # ------------------------------------------------------------------------------
 class DiscreteNetworkNode(Node):
     """Node in a Bayesian Network with discrete values."""
-    
+
     def __init__(self, RV, name=None, states=None, description='', cpt=None):
         """Initialize a new discrete Node.
 
         A Node represents a random variable (RV) in a Bayesian Network. For
-        this purpose, it keeps track of a conditional probability distribution 
+        this purpose, it keeps track of a conditional probability distribution
         (CPT).
 
         Args:
-            name (str): Name of the Node. Should correspond to the name of a 
+            name (str): Name of the Node. Should correspond to the name of a
                 conditioned variable in the CPT.
             states (list): List of states (strings)
             description (str): Name of the Node
@@ -161,7 +165,7 @@ class DiscreteNetworkNode(Node):
         components = [f"DiscreteNetworkNode('{self.RV}'"]
 
         if self.name:
-            components.append(f"name='{self.name}'") 
+            components.append(f"name='{self.name}'")
 
         if self.states:
             states = ', '.join([f"'{s}'" for s in self.states])
@@ -171,12 +175,22 @@ class DiscreteNetworkNode(Node):
             components.append(f"description='{self.description}'")
 
         return ', '.join(components) + ')'
-        
+
+    @property
+    def parents(self):
+        if self._cpt:
+            parents = dict([(p.RV, p) for p in self._parents])
+            sort_order = list(self._cpt._data.index.names[:-1])
+
+            return [parents[p] for p in sort_order]
+
+        return self._parents
+
     @property
     def cpt(self):
         """Return the Node's CPT."""
         return self._cpt
-    
+
     @cpt.setter
     def cpt(self, cpt):
         """
@@ -186,12 +200,13 @@ class DiscreteNetworkNode(Node):
 
         Args:
             cpt (CPT, Factor, pandas.Series): CPT for this node. Can be one of
-                CPT, Factor or pandas.Series. Factor or Series require an 
+                CPT, Factor or pandas.Series. Factor or Series require an
                 appropriately set Index/MultiIndex.
         """
+
         # Do a sanity check and ensure that the CPTs has no more then a
         # single conditioned variable. This is only useful if cpt is an
-        # actual CPT: for Factor/Series the last level in the index 
+        # actual CPT: for Factor/Series the last level in the index
         # will be assumed to be the conditioned variable.
         if not isinstance(cpt, CPT):
             e = "Argument should be a CPT"
@@ -224,7 +239,7 @@ class DiscreteNetworkNode(Node):
             return self._cpt.vars
 
         return []
-        
+
     def reset(self):
         """Create a default CPT.
 
@@ -237,7 +252,7 @@ class DiscreteNetworkNode(Node):
         # create a dict of states. In Python ≥ 3.6 these dicts are ordered!
         for p in (self._parents + [self, ]):
             if not p.states:
-                msg = 'Cannot reset the values of Node (with a parent) without' 
+                msg = 'Cannot reset the values of Node (with a parent) without'
                 msg += ' states!'
                 raise Exception(msg)
 
@@ -249,7 +264,7 @@ class DiscreteNetworkNode(Node):
     def add_parent(self, parent, **kwargs):
         """Add a parent to the Node.
 
-        Discrete nodes can only have other discrete nodes as parents. If 
+        Discrete nodes can only have other discrete nodes as parents. If
         succesful, the Node's CPT will be reset.
 
         Return:
@@ -308,7 +323,7 @@ class DiscreteNetworkNode(Node):
         cpt = CPT.from_dict(d['cpt'])
 
         node = DiscreteNetworkNode(
-            RV=d['RV'], 
+            RV=d['RV'],
             name=d['name'],
             states=d['states'],
             description=d['description']
@@ -316,4 +331,4 @@ class DiscreteNetworkNode(Node):
 
         node.cpt = cpt
 
-        return node    
+        return node

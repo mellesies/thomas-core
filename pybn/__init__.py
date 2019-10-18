@@ -98,7 +98,6 @@ def _process_prefix_index(idx, add_or_remove):
     # there's no need to call `set_codes()`.
     return pd.Index(new_states, name=idx.name)
 
-
 def add_prefix_to_index(idx):
     """Add prefixes to an Index or MultiIndex."""
 
@@ -126,7 +125,6 @@ def add_prefix_to_dict(variable_states):
     #
     # return prefixed
 
-
 def remove_prefix_from_index(idx):
     """Remove any prefixes from a dict with variable states."""
     # It seems the entire prefix-thing is completely unnecessary
@@ -142,8 +140,6 @@ def remove_none_values_from_dict(dict_):
     t = lambda x: (x is None) or (isinstance(x, float) and np.isnan(x))
     result = {k:v for k,v in dict_.items() if not t(v)}
     return result
-
-
 
 def index_to_dict(idx):
     if isinstance(idx, pd.MultiIndex):
