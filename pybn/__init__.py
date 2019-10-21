@@ -25,6 +25,9 @@ from .collections.bayesiannetwork import BayesianNetwork
 
 from . import error as e
 
+import logging
+log = logging.getLogger('pybn')
+
 def find_last_modified_script():
     directory = os.path.dirname(__file__)
     all_files = []
@@ -50,6 +53,16 @@ __version__ = find_last_modified_script()[1]
 del version
 
 
+def enable_logging_to_console(enable=True):
+    format_ = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+    if enable:
+        logging.basicConfig(format=format_, level=logging.DEBUG)
+        log.setLevel(logging.DEBUG)
+    else:
+        log.setLevel(logging.CRITICAL)
+
+
 def _process_prefix_index(idx, add_or_remove):
     """Add/remove prefixes to/from an Index or MultiIndex."""
     if not isinstance(idx, (pd.Index, pd.MultiIndex)):
@@ -69,7 +82,7 @@ def _process_prefix_index(idx, add_or_remove):
             prefix = name + '.'
 
             # MultiIndex keeps its levels sorted, so the order we're seeing in
-            # idx.levels[i] is not necessarily the order that was originally 
+            # idx.levels[i] is not necessarily the order that was originally
             # defined. We'll use idx.codes later to set this right.
             if add_or_remove == 'add':
                 new_states = [prefix + s for s in idx.levels[i]]
@@ -118,7 +131,7 @@ def add_prefix_to_dict(variable_states):
     #     if isinstance(states, str):
     #         if states.startswith(prefix):
     #             prefixed[name] = f'{states}'
-    #         else:                
+    #         else:
     #             prefixed[name] = f'{prefix}{states}'
     #     else:
     #         prefixed[name] = [f'{prefix}{s}' if not s.startswith(prefix) else s for s in states]

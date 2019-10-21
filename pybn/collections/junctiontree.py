@@ -265,8 +265,7 @@ class TreeNode(object):
             self._factors = []
 
         self._edges = [] # list: TreeEdge
-
-        self._joint = None   # cached joint distribution over self._factors
+        self._factors_multiplied = None   # cache
 
         # The cache is indexed by upstream node.
         self.invalidate_cache() # sets self._cache = {}
@@ -294,14 +293,18 @@ class TreeNode(object):
 
     @property
     def joint(self):
+        return self.pull()
+
+    @property
+    def factors_multiplied(self):
         """Compute the joint of the Node's factors."""
-        if self._joint is None:
+        if self._factors_multiplied is None:
             factors = self._factors + self.indicators
 
             # Per documentation for reduce: "If initializer is not given and
             # sequence contains only one item, the first item is returned."
             try:
-                self._joint = reduce(mul, factors)
+                self._factors_multiplied = reduce(mul, factors)
             except:
                 print('*** ERROR ***')
                 print('Error while trying to compute the joint distribution')
@@ -309,7 +312,7 @@ class TreeNode(object):
                 print(f'Factors:', factors)
                 raise
 
-        return self._joint
+        return self._factors_multiplied
 
     def add_neighbor(self, edge):
         if edge not in self._edges:
@@ -318,7 +321,7 @@ class TreeNode(object):
     def add_factor(self, factor):
         """Add a factor to this Node."""
         self._factors.append(factor)
-        self._joint = None
+        self._factors_multiplied = None
 
     def invalidate_cache(self):
         """Invalidate the cache.
@@ -327,7 +330,7 @@ class TreeNode(object):
         cluster with indicators.
         """
         self._cache = {}
-        self._joint = None
+        self._factors_multiplied = None
 
     def get_downstream_edges(self, upstream=None):
         return [e for e in self._edges if e is not upstream]
@@ -355,7 +358,7 @@ class TreeNode(object):
     def pull(self, upstream=None):
         """Trigger pulling of messages towards this node."""
         downstream_edges = self.get_downstream_edges(upstream)
-        result = self.joint
+        result = self.factors_multiplied
 
         if downstream_edges:
             downstream_results = []
@@ -381,10 +384,10 @@ class TreeNode(object):
         """
         result = self.pull().project(RV)
 
-        if not normalize:
-            return result
+        if normalize:
+            return result.normalize()
 
-        return result.normalize()
+        return result
 
 # ------------------------------------------------------------------------------
 # EvidenceNode

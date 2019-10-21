@@ -27,6 +27,10 @@ from .junctiontree import JunctionTree, TreeNode
 
 from .. import error
 
+import logging
+log = logging.getLogger('pybn')
+
+
 
 def get_fill_in_edges(edges, order, fill_in=None):
     """Recursively compute the clusters for the elimination tree."""
@@ -311,7 +315,6 @@ class BayesianNetwork(object):
         # First, create the JT itself.
         clusters = self._get_elimination_clusters(order=order)
         tree = JunctionTree(clusters)
-
         nodes = list(tree.nodes.values())
 
         for idx, node_i in reversed(list(enumerate(nodes))):
@@ -382,6 +385,39 @@ class BayesianNetwork(object):
                 print('tree_node.vars:', tree_node.vars)
 
         return tree
+
+    def _parse_query_string(self, query_string):
+        """Parse a query string into a tuple of query_dist, query_values,
+        evidence_dist, evidence_values.
+
+        The query P(I,G=g1|D,L=l0) would imply:
+            query_dist = ('I',)
+            query_values = {'G': 'g1'}
+            evidence_dist = ('D',)
+            evidence_values = {'L': 'l0'}
+        """
+        def split(s):
+            dist, values = [], {}
+            params = []
+
+            if s:
+                params = s.split(',')
+
+            for p in params:
+                if '=' in p:
+                    key, value = p.split('=')
+                    values[key] = value
+                else:
+                    dist.append(p)
+
+            return dist, values
+
+        query_str, given_str = query_string, ''
+
+        if '|' in query_str:
+            query_str, given_str = query_string.split('|')
+
+        return split(query_str) + split(given_str)
 
     # --- testing only
     def FE1(self, Q, order=None):
@@ -485,6 +521,81 @@ class BayesianNetwork(object):
             self.junction_tree.set_evidence_hard(RV, state)
 
         return self.junction_tree.get_probabilities(query_dist)
+
+    def P(self, query_string, always_use_VE=False):
+        """Return the probability as queried by query_string.
+
+        P('I,G=g1|D,L=l0') is equivalent to calling compute_posterior with:
+            query_dist = ('I',)
+            query_values = {'G': 'g1'}
+            evidence_dist = ('D',)
+            evidence_values = {'L': 'l0'}
+        """
+        qd, qv, ed, ev = self._parse_query_string(query_string)
+        self.junction_tree.reset_evidence()
+
+        if not always_use_VE:
+            required_RVs = set(qd + list(qv.keys() )+ ed)
+
+            for node in self.junction_tree.nodes.values():
+
+                if required_RVs.issubset(node.cluster):
+                    log.debug(f'Found a node: {node.cluster}')
+                    query_vars = list(qv.keys()) + qd
+
+                    for RV, value in ev.items():
+                        self.junction_tree.set_evidence_hard(RV, value)
+
+                    if ed:
+                        # The cluster may contained variables we're not
+                        # interested in
+                        superfluous = node.cluster - required_RVs
+                        result = node.joint
+
+                        if superfluous:
+                            log.debug(f'Summing out {superfluous}')
+                            result = result.sum_out(superfluous)
+
+                        # Divide by the evidence distribution
+                        result = result / node.joint.project(set(ed))
+
+                    else:
+                        log.debug(f'Projecting onto {qd}')
+                        result = node.joint.project(set(qd))
+
+                    result = result.normalize()
+
+
+                    # FIXME: this code is duplicated from bag.py
+                    # If query values were specified we can extract them from the factor.
+                    if qv:
+                        levels = list(qv.keys())
+                        values = list(qv.values())
+
+                        if result.width == 1:
+                            result = result[values[0]]
+
+                        elif result.width > 1:
+                            indices = []
+
+                            for level, value in qv.items():
+                                idx = result._data.index.get_level_values(level) == value
+                                indices.append(list(idx))
+
+                            zipped = list(zip(*indices))
+                            idx = [all(x) for x in zipped]
+                            result = Factor(result._data[idx])
+
+                    cpt = pybn.CPT(result, conditioned_variables=query_vars)
+
+                    log.debug('Used JT')
+                    return cpt
+
+        # If answering the query requires modification of the JT, fall
+        # back to variable elimination.
+        log.debug('Used VE')
+        return self.as_bag().P(query_string)
+
 
     def reset_evidence(self, RV=None):
         """Reset evidence for one or more RVs."""
@@ -597,6 +708,12 @@ class BayesianNetwork(object):
         G = nx.DiGraph()
         G.add_edges_from(self.edges)
         return G
+
+    def as_bag(self):
+        return pybn.Bag(
+            name=self.name,
+            factors=[n.cpt for n in self.nodes.values()]
+        )
 
     def as_dict(self):
         """Return a dict representation of this Bayesian Network."""
