@@ -25,8 +25,8 @@ GRAMMAR = r"""
     potential: "potential" "(" name ["|" parents] ")" properties
     parents: name*
 
-    ?value: string 
-          | number 
+    ?value: string
+          | number
           | tuple
 
     string: ESCAPED_STRING
@@ -45,13 +45,13 @@ GRAMMAR = r"""
 
 class BasicTransformer(lark.Transformer):
     """Transform lark.Tree into basic, Python native, objects."""
-    
+
     def oobn_class(self, items):
         """The oobn_class is the root element of an OOBN file."""
         name, properties, comment = items
         #for idx, i in enumerate(items):
         #    print(repr(i)[:25])
-        
+
         oobn_obj = {
             'name': name
         }
@@ -62,9 +62,9 @@ class BasicTransformer(lark.Transformer):
 
     def name(self, tokens):
         """A name is essentially an unquoted string."""
-        # tokens: list of Token; Token is a subclass of string        
+        # tokens: list of Token; Token is a subclass of string
         return str(tokens[0])
-    
+
     def properties(self, items):
         """
         Properties of the root element or one of its contained subclassess.
@@ -72,11 +72,12 @@ class BasicTransformer(lark.Transformer):
         properties = []
         nodes = {}
         potentials = {}
-        
+
         for i in items:
             if isinstance(i, tuple):
+                # Every property is a (key, value) tuple
                 properties.append(i)
-            
+
             elif i['type'] == 'DiscreteNetworkNode':
                 nodes[i['name']] = i
 
@@ -89,9 +90,9 @@ class BasicTransformer(lark.Transformer):
 
         if potentials:
             properties.append(('potentials', potentials))
-                
+
         return dict(properties)
-            
+
     def node(self, items):
         """Subclass of the root element.
 
@@ -105,7 +106,7 @@ class BasicTransformer(lark.Transformer):
         node.update(properties)
 
         return node
-    
+
     def potential(self, items):
         """Subclass of the root element.
 
@@ -115,12 +116,12 @@ class BasicTransformer(lark.Transformer):
         """
 
         parents = []
-        
+
         if len(items) == 2:
-            name, properties = items            
+            name, properties = items
         elif len(items) == 3:
             name, parents, properties = items
-        
+
         potential = {
             'type': 'CPT',
             'name': name,
@@ -130,16 +131,16 @@ class BasicTransformer(lark.Transformer):
         potential.update(properties)
 
         return potential
-                
+
     def property(self, items):
         """A property consists of a simple key, value pair."""
         name, value = items[:2]
         return (name, value)
-    
+
     def parents(self, items):
         """Represents the parents of a node in the DAG."""
         return list(items)
-    
+
     def string(self, items):
         """Quoted string."""
         # Remove the quotes ...
@@ -148,11 +149,11 @@ class BasicTransformer(lark.Transformer):
     def number(self, items):
         """Number."""
         return float(items[0])
-    
+
     def tuple(self, items):
         """Tuple."""
         return [i for i in items if i is not None]
-    
+
     def comment(self, items):
         """Comment. Ignored."""
         return None
@@ -164,7 +165,7 @@ def _parse(filename):
 
     parser = lark.Lark(GRAMMAR, parser='lalr', start='oobn_class')
     tree = parser.parse(oobn_data)
-    
+
     return tree
 
 def _transform(tree):
@@ -188,10 +189,11 @@ def _create_structure(tree):
             edges.append((parent, name))
 
         node_states = node['states']
+        node_position = node['position']
         parent_states = {}
 
         # print('-' * 80)
-        # print(f'processing: {name}')        
+        # print(f'processing: {name}')
         # print(f'  states: {node_states}')
         # print(f'  parents: {node_parents}')
 
@@ -255,11 +257,13 @@ def _create_structure(tree):
             'name': name,
             'states': node_states,
             'parents': node_parents,
+            'position': node_position,
             'CPT': cpt
         }
 
     network = {
         'name': tree['name'],
+        'node_size': tree['node_size'],
         'nodes': nodes,
         'edges': edges,
     }
@@ -273,16 +277,18 @@ def _create_bn(structure):
     for name, node_properties in structure['nodes'].items():
         RV = node_properties['RV']
         states = node_properties['states']
+        position = node_properties['position']
         description = ''
 
         cpt = node_properties['CPT']
-        
+
         if None in cpt.index.names:
             cpt.index = cpt.index.droplevel()
 
         constructor = getattr(pybn, node_properties['type'])
 
         n = constructor(RV, name, states, description, cpt)
+        n.position = position
         nodes.append(n)
 
     edges = structure['edges']

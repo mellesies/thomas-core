@@ -6,7 +6,7 @@ from functools import reduce
 from . import ProbabilisticModel
 
 from ..util import sep
-from ..factors.factor import mul, Factor
+from ..factor.factor import mul, Factor
 # ------------------------------------------------------------------------------
 # JunctionTree
 # ------------------------------------------------------------------------------

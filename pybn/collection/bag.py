@@ -14,9 +14,9 @@ import json
 
 import pybn
 from . import ProbabilisticModel
-from ..factors.factor import Factor, mul
-from ..factors.cpt import CPT
-from ..factors.node import Node
+from ..factor.factor import Factor, mul
+from ..factor.cpt import CPT
+from ..factor.node import Node
 
 from .. import error
 
@@ -64,12 +64,12 @@ class Bag(ProbabilisticModel):
         """
         # filtered = [f for f in factors if not f.overlaps_with(Q)]
         # filtered.sort(key=lambda x: x.width)
-        
+
         scope = self._scope(factors)
         return [v for v in scope if v not in Q]
 
     def eliminate(self, Q, e=None, debug=False):
-        """Perform variable elimination."""        
+        """Perform variable elimination."""
         if e is None: e = {}
         e = pybn.add_prefix_to_dict(e)
 
@@ -81,10 +81,10 @@ class Bag(ProbabilisticModel):
         try:
             factors = [f.set_evidence(**e) for f in factors]
         except error.InvalidStateError as e:
-            # Actually, don't deal with this here ... 
+            # Actually, don't deal with this here ...
             raise
 
-        # ordering will contain a list of variables *not* in Q, i.e. the 
+        # ordering will contain a list of variables *not* in Q, i.e. the
         # remaining variables from the full distribution.
         ordering = self.find_elimination_ordering(Q, factors)
 
@@ -129,7 +129,7 @@ class Bag(ProbabilisticModel):
 
             new_factor = new_factor.sum_out(X)
 
-            # Replace the factors we have eliminated with the new factor. 
+            # Replace the factors we have eliminated with the new factor.
             factors = [f for f in factors if f not in related_factors]
             factors.append(new_factor)
 
@@ -161,7 +161,7 @@ class Bag(ProbabilisticModel):
 
         return result
 
-    def compute_posterior(self, query_dist, query_values, evidence_dist, 
+    def compute_posterior(self, query_dist, query_values, evidence_dist,
         evidence_values, **kwargs):
         """Compute the probability of the query variables given the evidence.
 

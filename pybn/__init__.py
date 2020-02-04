@@ -16,12 +16,12 @@ from functools import reduce
 
 import json
 
-from .factors.factor import Factor
-from .factors.cpt import CPT
-from .factors.node import Node, DiscreteNetworkNode
+from .factor.factor import Factor
+from .factor.cpt import CPT
+from .factor.node import Node, DiscreteNetworkNode
 
-from .collections.bag import Bag
-from .collections.bayesiannetwork import BayesianNetwork
+from .collection.bag import Bag
+from .collection.bayesiannetwork import BayesianNetwork
 
 from . import error as e
 
@@ -61,7 +61,6 @@ def enable_logging_to_console(enable=True):
         log.setLevel(logging.DEBUG)
     else:
         log.setLevel(logging.CRITICAL)
-
 
 def _process_prefix_index(idx, add_or_remove):
     """Add/remove prefixes to/from an Index or MultiIndex."""

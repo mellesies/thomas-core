@@ -18,9 +18,9 @@ import json
 
 import pybn
 # from . import ProbabilisticModel
-from ..factors.factor import Factor, mul
-from ..factors.cpt import CPT
-from ..factors.node import Node, DiscreteNetworkNode
+from ..factor.factor import Factor, mul
+from ..factor.cpt import CPT
+from ..factor.node import Node, DiscreteNetworkNode
 
 from .bag import Bag
 from .junctiontree import JunctionTree, TreeNode
@@ -596,7 +596,6 @@ class BayesianNetwork(object):
         log.debug('Used VE')
         return self.as_bag().P(query_string)
 
-
     def reset_evidence(self, RV=None):
         """Reset evidence for one or more RVs."""
         self.junction_tree.reset_evidence(RV)
@@ -656,7 +655,6 @@ class BayesianNetwork(object):
         # apply() yields a Series where each entry holds a DataFrame.
         dfs = unique_cases.apply(self._complete_case, axis=1)
         dfs = dfs.dropna()
-
 
     # --- constructors ---
     @classmethod

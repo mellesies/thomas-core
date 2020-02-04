@@ -154,6 +154,7 @@ class DiscreteNetworkNode(Node):
         super().__init__(RV, name, description)
 
         self.states = states or []
+        self.position = None
 
         if cpt is not None:
             self.cpt = cpt
@@ -312,7 +313,8 @@ class DiscreteNetworkNode(Node):
             'name': self.name,
             'states': self.states,
             'description': self.description,
-            'cpt': cpt
+            'cpt': cpt,
+            'position': self.position,
         }
 
         return d
@@ -328,7 +330,9 @@ class DiscreteNetworkNode(Node):
             states=d['states'],
             description=d['description']
         )
-
+        node.position = d.get('position', (0,0))
         node.cpt = cpt
 
         return node
+
+
