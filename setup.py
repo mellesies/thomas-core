@@ -12,7 +12,7 @@ PKG_NAME = 'pybn'
 PKG_DESC = 'Very simple (almost naive ;) bayesian network implementation'
 
 # Get the long description from the README file
-with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
+with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 # Read the API version from disk
@@ -26,6 +26,7 @@ setup(
     version=__version__,
     description=PKG_DESC,
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url='https://github.com/mellesies/py-bn',
     author='Melle Sieswerda',
     author_email='m.sieswerda@iknl.nl',

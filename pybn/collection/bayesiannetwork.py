@@ -117,7 +117,6 @@ def running_intersection(clusters):
 
         print()
 
-
 def merge_clusters(clusters):
     clusters = list(clusters)
     should_continue = True
