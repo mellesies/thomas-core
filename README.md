@@ -1,6 +1,6 @@
 [![Coverage Status](https://coveralls.io/repos/github/mellesies/py-bn/badge.svg?branch=master)](https://coveralls.io/github/mellesies/thomas-core?branch=thomas)
 [![Build Status](https://travis-ci.org/mellesies/thomas-core.svg?branch=thomas)](https://travis-ci.org/mellesies/thomas-core)
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mellesies/thomas-core/thomas?filepath=notebooks%2F4.%20Bayesian%20Networks.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mellesies/thomas-core/thomas?urlpath=/lab/tree/notebooks)
 
 # Thomas
 Very simple (almost naive ;-) bayesian network implementation.
