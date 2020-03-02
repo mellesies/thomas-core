@@ -1,10 +1,10 @@
-[![Coverage Status](https://coveralls.io/repos/github/mellesies/py-bn/badge.svg?branch=master)](https://coveralls.io/github/mellesies/py-bn?branch=master)
-[![Build Status](https://travis-ci.org/mellesies/py-bn.svg?branch=master)](https://travis-ci.org/mellesies/py-bn)
+[![Coverage Status](https://coveralls.io/repos/github/mellesies/py-bn/badge.svg?branch=master)](https://coveralls.io/github/mellesies/thomas-core?branch=thomas)
+[![Build Status](https://travis-ci.org/mellesies/thomas-core.svg?branch=thomas)](https://travis-ci.org/mellesies/thomas-core)
 
-# py-bn
+# Thomas
 Very simple (almost naive ;-) bayesian network implementation.
 
-Example (module `pybn.examples`) contains examples from the book "Probabilistic Graphical Models: Principles and Techniques" from Koller and Friedman ([PGM Stanford](http://pgm.stanford.edu)) and from the lecture by [Adnan Darwiche](http://web.cs.ucla.edu/~darwiche/) on YouTube:
+Example (module `thomas.core.examples`) contains examples from the book "Probabilistic Graphical Models: Principles and Techniques" from Koller and Friedman ([PGM Stanford](http://pgm.stanford.edu)) and from the lecture by [Adnan Darwiche](http://web.cs.ucla.edu/~darwiche/) on YouTube:
 * [6a. Inference by Variable Elimination I (Chapter 6)](https://www.youtube.com/watch?v=7oRReD_ayWo).
 * [6b. Inference by Variable Elimination II (Chapter 6)](https://www.youtube.com/watch?v=QSSmx1ndUvg).
 
@@ -12,11 +12,10 @@ For information on how to setup a network based on (known) conditional probabili
 
 To get started with querying a network, try the following:
 ```python
-import pybn as bn
-import pybn.examples
+from thomas.core import examples
 
 # Load an example network
-Gs = bn.examples.get_student_network()
+Gs = examples.get_student_network()
 
 # This should output the prior probability of random variable 'S' (SAT score).
 print(Gs.P('S'))
@@ -40,4 +39,4 @@ print(Gs.P('S|I=i1'))
 # dtype: float64
 ```
 
-For details have a look at the code or use pydoc.
+For details have a look at the notebooks, code or use pydoc.
