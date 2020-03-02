@@ -13,17 +13,15 @@ from functools import reduce
 import json
 
 import pybn
-from . import ProbabilisticModel
-from ..factor.factor import Factor, mul
-from ..factor.cpt import CPT
-from ..factor.node import Node
+from .factor import Factor, mul
+from .cpt import CPT
 
-from .. import error
+from . import error
 
 # ------------------------------------------------------------------------------
 # Bag
 # ------------------------------------------------------------------------------
-class Bag(ProbabilisticModel):
+class Bag(pybn.ProbabilisticModel):
     """Bag of factors."""
 
     def __init__(self, name='', factors=None):
@@ -71,7 +69,6 @@ class Bag(ProbabilisticModel):
     def eliminate(self, Q, e=None, debug=False):
         """Perform variable elimination."""
         if e is None: e = {}
-        e = pybn.add_prefix_to_dict(e)
 
         # Initialize the list of factors to the pruned set. self.prune() should
         # be implemented by subclasses with more knowledge of the structure
@@ -79,7 +76,7 @@ class Bag(ProbabilisticModel):
 
         # Apply the evidence to the pruned set.
         try:
-            factors = [f.set_evidence(**e) for f in factors]
+            factors = [f.keep_values(**e) for f in factors]
         except error.InvalidStateError as e:
             # Actually, don't deal with this here ...
             raise
@@ -161,33 +158,32 @@ class Bag(ProbabilisticModel):
 
         return result
 
-    def compute_posterior(self, query_dist, query_values, evidence_dist,
-        evidence_values, **kwargs):
+    def compute_posterior(self, qd, qv, ed, ev):
         """Compute the probability of the query variables given the evidence.
 
         The query P(I,G=g1|D,L=l0) would imply:
-            query_dist = ['I']
-            query_values = {'G': 'g1'}
-            evidence_dist = ('D',)
-            evidence_values = {'L': 'l0'}
+            qd = ['I']
+            qv = {'G': 'g1'}
+            ed = ('D',)
+            ev = {'L': 'l0'}
 
-        :param tuple query_dist: Random variable to query
-        :param dict query_values: Random variable values to query
-        :param tuple evidence_dist: Conditioned on evidence
-        :param dict evidence_values: Conditioned on values
-        :return: pandas.Series (possibly with MultiIndex)
+        Args:
+            qd (list): query distributions: RVs to query
+            qv (dict): query values: RV-values to extract
+            ed (list): evidence distributions: coniditioning RVs to include
+            ev (dict): evidence values: values to set as evidence.
+
+        Returns:
+            CPT
         """
-        query_values = pybn.add_prefix_to_dict(query_values)
-
-        evidence_values = pybn.remove_none_values_from_dict(evidence_values)
-        evidence_values = pybn.add_prefix_to_dict(evidence_values)
+        ev = pybn.remove_none_values_from_dict(ev)
 
         # Get a list of *all* variables to query
-        query_vars = list(query_values.keys()) + query_dist
-        evidence_vars = list(evidence_values.keys()) + evidence_dist
+        query_vars = list(qv.keys()) + qd
+        evidence_vars = list(ev.keys()) + ed
 
         # First, compute the joint over the query variables and the evidence.
-        result = self.eliminate(query_vars + evidence_dist, evidence_values)
+        result = self.eliminate(query_vars + ed, ev)
         result = result.normalize()
 
         # At this point, result's scope is over all query and evidence variables
@@ -203,9 +199,9 @@ class Bag(ProbabilisticModel):
                 raise
 
         # If query values were specified we can extract them from the factor.
-        if query_values:
-            levels = list(query_values.keys())
-            values = list(query_values.values())
+        if qv:
+            levels = list(qv.keys())
+            values = list(qv.values())
 
             if result.width == 1:
                 result = result[values[0]]
@@ -213,7 +209,7 @@ class Bag(ProbabilisticModel):
             elif result.width > 1:
                 indices = []
 
-                for level, value in query_values.items():
+                for level, value in qv.items():
                     idx = result._data.index.get_level_values(level) == value
                     indices.append(list(idx))
 

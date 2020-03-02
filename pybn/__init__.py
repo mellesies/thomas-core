@@ -16,15 +16,6 @@ from functools import reduce
 
 import json
 
-from .factor.factor import Factor
-from .factor.cpt import CPT
-from .factor.node import Node, DiscreteNetworkNode
-
-from .collection.bag import Bag
-from .collection.bayesiannetwork import BayesianNetwork
-
-from . import error as e
-
 import logging
 log = logging.getLogger('pybn')
 
@@ -46,7 +37,6 @@ def find_last_modified_script():
 
     return as_tuples[0][0], as_tuples[0][2]
 
-
 version = find_last_modified_script()
 __version_long__ = '{} ({})'.format(version[1], version[0])
 __version__ = find_last_modified_script()[1]
@@ -62,100 +52,93 @@ def enable_logging_to_console(enable=True):
     else:
         log.setLevel(logging.CRITICAL)
 
-def _process_prefix_index(idx, add_or_remove):
-    """Add/remove prefixes to/from an Index or MultiIndex."""
-    if not isinstance(idx, (pd.Index, pd.MultiIndex)):
-        raise TypeError('index should be pandas.Index or pandas.MultiIndex')
-
-    if isinstance(idx, pd.MultiIndex):
-        # processed_states will keep track of a list of tuples:
-        #   [('i0', ), ('d0', 'd1')]
-        processed_states = []
-
-        # MultiIndex.from_product requires names to be iterable, so we'll need
-        # to cast it anyway.
-        names = list(idx.names)
-
-        # idx.levels[i] only takes integers as index, so we'll have to enumerate
-        for i, name in enumerate(names):
-            prefix = name + '.'
-
-            # MultiIndex keeps its levels sorted, so the order we're seeing in
-            # idx.levels[i] is not necessarily the order that was originally
-            # defined. We'll use idx.codes later to set this right.
-            if add_or_remove == 'add':
-                new_states = [prefix + s for s in idx.levels[i]]
-            else:
-                new_states = [s.replace(prefix, '') for s in idx.levels[i]]
-
-            processed_states.append(new_states)
-
-
-        # Creating a new MultiIndex from product uses the order as specified
-        # in the tuples. Since this may not have been the original order, we'll
-        # need to set this straight by calling `new_idx.set_codes()`.
-        new_idx = pd.MultiIndex.from_product(processed_states, names=names)
-        new_idx = new_idx.set_codes(idx.codes)
-        return new_idx
-
-    # Regular Index
-    prefix = idx.name + '.'
-
-    if add_or_remove == 'add':
-        new_states = [prefix + state for state in idx]
-    else:
-        new_states = [state.replace(prefix, '') for state in idx]
-
-    # For some reason the regular Index does not sort its states/levels, so
-    # there's no need to call `set_codes()`.
-    return pd.Index(new_states, name=idx.name)
-
-def add_prefix_to_index(idx):
-    """Add prefixes to an Index or MultiIndex."""
-
-    # It seems the entire prefix-thing is completely unnecessary
-    # return _process_prefix_index(idx, 'add')
-    return idx
-
-def add_prefix_to_dict(variable_states):
-    """Add prefixes to dict with states."""
-
-    # It seems the entire prefix-thing is completely unnecessary
-    return variable_states
-
-    # prefixed = {}
-    #
-    # for name, states in variable_states.items():
-    #     prefix = f'{name}.'
-    #     if isinstance(states, str):
-    #         if states.startswith(prefix):
-    #             prefixed[name] = f'{states}'
-    #         else:
-    #             prefixed[name] = f'{prefix}{states}'
-    #     else:
-    #         prefixed[name] = [f'{prefix}{s}' if not s.startswith(prefix) else s for s in states]
-    #
-    # return prefixed
-
-def remove_prefix_from_index(idx):
-    """Remove any prefixes from a dict with variable states."""
-    # It seems the entire prefix-thing is completely unnecessary
-    return idx
-    # return _process_prefix_index(idx, 'remove')
-
-def remove_from_dict_by_value(dict_, value):
-    """filter entries that have value `value` from the dict."""
-    return {k:v for k,v in evidence_values.items() if v == value}
-
 def remove_none_values_from_dict(dict_):
-    """Remove none values, like `None` and `np.nan` from the dict."""
-    t = lambda x: (x is None) or (isinstance(x, float) and np.isnan(x))
-    result = {k:v for k,v in dict_.items() if not t(v)}
-    return result
+   """Remove none values, like `None` and `np.nan` from the dict."""
+   t = lambda x: (x is None) or (isinstance(x, float) and np.isnan(x))
+   result = {k:v for k,v in dict_.items() if not t(v)}
+   return result
 
-def index_to_dict(idx):
-    if isinstance(idx, pd.MultiIndex):
-        return {i.name: list(i) for i in idx.levels}
+def parse_query_string(query_string):
+    """Parse a query string into a tuple of query_dist, query_values,
+    evidence_dist, evidence_values.
 
-    return {idx.name: list(idx)}
+    The query P(I,G=g1|D,L=l0) would imply:
+        query_dist = ('I',)
+        query_values = {'G': 'g1'}
+        evidence_dist = ('D',)
+        evidence_values = {'L': 'l0'}
+    """
+    def split(s):
+        dist, values = [], {}
+        params = []
 
+        if s:
+            params = s.split(',')
+
+        for p in params:
+            if '=' in p:
+                key, value = p.split('=')
+                values[key] = value
+            else:
+                dist.append(p)
+
+        return dist, values
+
+    query_str, given_str = query_string, ''
+
+    if '|' in query_str:
+        query_str, given_str = query_string.split('|')
+
+    return split(query_str) + split(given_str)
+
+
+class ProbabilisticModel(object):
+
+    def compute_posterior(self, query_dist, query_values, evidence_dist,
+        evidence_values, **kwargs):
+        """Compute the probability of the query variables given the evidence.
+
+        The query P(I,G=g1|D,L=l0) would imply:
+            query_dist = ['I']
+            query_values = {'G': 'g1'}
+            evidence_dist = ('D',)
+            evidence_values = {'L': 'l0'}
+
+        :param tuple query_dist: Random variable to query
+        :param dict query_values: Random variable values to query
+        :param tuple evidence_dist: Conditioned on evidence
+        :param dict evidence_values: Conditioned on values
+        :return: pandas.Series (possibly with MultiIndex)
+        """
+        raise NotImplementedError
+
+    def P(self, query_string):
+        """Return the probability as queried by query_string.
+
+        P('I,G=g1|D,L=l0') is equivalent to calling compute_posterior with:
+            query_dist = ('I',)
+            query_values = {'G': 'g1'}
+            evidence_dist = ('D',)
+            evidence_values = {'L': 'l0'}
+        """
+        qd, qv, gd, gv = parse_query_string(query_string)
+        return self.compute_posterior(qd, qv, gd, gv)
+
+    def MAP(self, query_dist, evidence_values, include_probability=True):
+        """Perform a Maximum a Posteriori query."""
+        d = self.compute_posterior(query_dist, {}, [], evidence_values)
+        evidence_vars = [e for  e in evidence_values.keys() if e in d.scope]
+
+        d = d.droplevel(evidence_vars)
+
+        if include_probability:
+            return d.idxmax(), d.max()
+
+        return d.idxmax()
+
+
+# Convenience imports
+from .factor import Factor
+from .cpt import CPT
+from .bag import Bag
+from .bayesiannetwork import BayesianNetwork

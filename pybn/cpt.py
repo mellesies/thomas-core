@@ -13,7 +13,7 @@ from functools import reduce
 import json
 
 from .factor import *
-from .. import error as e
+from . import error as e
 
 
 # ------------------------------------------------------------------------------
@@ -34,11 +34,11 @@ class CPT(Factor):
         Args:
             data (list, pandas.Series, Factor): array of values.
             conditioned_variables (list): list of conditioned variables
-            variable_states (dict): list of allowed states for each random 
-                variable, indexed by name. If variable_states is None, `data` 
-                should be a pandas.Series (or Factor) with a proper 
+            variable_states (dict): list of allowed states for each random
+                variable, indexed by name. If variable_states is None, `data`
+                should be a pandas.Series (or Factor) with a proper
                 Index/MultiIndex.
-            description (str): An optional description of the random variables' 
+            description (str): An optional description of the random variables'
                 meaning.
         """
         if isinstance(data, Factor):
@@ -78,18 +78,18 @@ class CPT(Factor):
 
         if conditioning:
             return f'{conditioned}{sep2}{conditioning}'
-    
+
         return f'{conditioned}'
 
     def short_query_str(self, sep1=',', sep2='|'):
         """Return a short version of the query string."""
         return self._short_query_str(
             sep1,
-            sep2, 
-            self.conditioned, 
+            sep2,
+            self.conditioned,
             self.conditioning
         )
-       
+
     @property
     def display_name(self):
         """Return a short version of the query string."""
@@ -97,7 +97,7 @@ class CPT(Factor):
 
     def _repr_html_(self):
         """Return an HTML representation of this CPT."""
-        data = self._data_without_prefix
+        data = self._data
 
         if self.conditioning:
             html = data.unstack(self.conditioned)._repr_html_()
@@ -121,13 +121,6 @@ class CPT(Factor):
             return self.__class__(self._data / self._data.unstack().sum(axis=1))
 
         return self.__class__(self._data / self._data.sum())
-
-    # def reorder_scope(self, order=None):
-    #     return CPT(
-    #         super().reorder_scope(order),
-    #         conditioned_variables=self.conditioned,
-    #         description = self.description
-    #     )
 
     def unstack(self, level=None, *args, **kwargs):
         if level is None:
@@ -164,7 +157,7 @@ class CPT(Factor):
         factor = super().from_dict(d)
 
         return CPT(
-            factor, 
+            factor,
             conditioned_variables=d.get('conditioned'),
             description=d.get('description')
         )

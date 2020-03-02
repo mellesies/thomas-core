@@ -12,8 +12,11 @@ from functools import reduce
 
 import json
 
+import logging
+log = logging.getLogger('pybn')
+
 import pybn
-from .. import error as e
+from . import error as e
 
 
 # ------------------------------------------------------------------------------
@@ -94,10 +97,6 @@ class Factor(object):
             # Create a (Multi)Index from the variable states.
             idx = self._index_from_variable_states(variable_states)
 
-            # Prefix the states of the variables to make them unique.
-            # {'I': ['i0', 'i1']} --> {'I': ['I.i0', 'I.i1']}
-            idx = pybn.add_prefix_to_index(idx)
-
         elif (isinstance(data, pd.Series)
             and isinstance(data.index, (pd.Index, pd.MultiIndex))):
                 # TODO: should we make sure that the index is prefixed?
@@ -124,7 +123,7 @@ class Factor(object):
 
     def __repr__(self):
         """repr(f) <==> f.__repr__()"""
-        return f'{self.display_name}\n{repr(self._data_without_prefix)}'
+        return f'{self.display_name}\n{repr(self._data)}'
 
     def __mul__(self, other):
         """A * B <=> A.mul(B)"""
@@ -138,22 +137,14 @@ class Factor(object):
         """A / B <=> A.div(B)"""
         return self.div(other)
 
+    # TODO: not sure if this is a good idea or whether it should return
+    #       an element-wise comparison (like Pandas does)
+    # def __eq__(self, other):
+    #     """x == y <==> x.__eq__(y)"""
+    #     return self._data.equals(other._data)
+
     def __getitem__(self, key):
-        """A[x] <==> A.__getitem__(x)"""
-
-        # It seems the entire prefix-thing is completely unnecessary
-        # scope = self.scope
-        #
-        # if isinstance(key, str):
-        #     key = f'{scope[0]}.{key}'
-        #
-        # elif isinstance(key, tuple):
-        #     prefixed = []
-        #     for i, k in enumerate(key):
-        #        prefixed.append(f'{scope[i]}.{k}')
-        #
-        #     key = tuple(prefixed)
-
+        """factor[x] <==> factor.__getitem__(x)"""
         result = self._data.__getitem__(key)
 
         if isinstance(result, pd.Series):
@@ -168,7 +159,7 @@ class Factor(object):
     @property
     def index(self):
         """Return the Factor index (without prefixes)."""
-        return self._data_without_prefix.index
+        return self._data.index
 
     @property
     def values(self):
@@ -196,35 +187,17 @@ class Factor(object):
 
         return idx
 
-    @property
-    def _data_without_prefix(self):
-        """Return a copy of the underlying data where the states have *not* been
-            prefixed with the random variable's name.
-        """
-        data = self._data.copy()
-
-        if isinstance(data.index, pd.MultiIndex):
-            idx = data.index.remove_unused_levels()
-        else:
-            idx = data.index
-
-        try:
-            idx = pybn.remove_prefix_from_index(idx)
-            data.index = idx
-            return data
-        except Exception as e:
-            print()
-            print('Exception:', e)
-            print(idx)
-            raise
+    def equals(self, other):
+        """Test whether two objects contain the same elements."""
+        return self._data.equals(other._data)
 
     def max(self):
         """Proxy for pandas.Series.max()"""
-        return self._data_without_prefix.max()
+        return self._data.max()
 
     def idxmax(self):
         """Proxy for pandas.Series.idmax()"""
-        return self._data_without_prefix.idxmax()
+        return self._data.idxmax()
 
     def sum(self):
         """Sum all values of the factor."""
@@ -233,9 +206,6 @@ class Factor(object):
     def mul(self, other):
         """A * B <=> A.mul(B)"""
         if isinstance(other, (float, np.float, np.float64)):
-            print()
-            print('!' * 80)
-            print('being quick about it ...')
             return Factor(self._data.mul(other, *args, **kwargs), self.variable_states)
 
         elif isinstance(other, Factor):
@@ -247,8 +217,7 @@ class Factor(object):
             other = other.reorder_scope()
 
         else:
-            print('?' * 80)
-            print('what the flying ... ', type(other))
+            log.warn(f'Unsure how to multiply {type(other)} with a Factor')
 
         # Safety precaution. Really only necessary when multiplying a Series or
         # another Factor.
@@ -283,9 +252,11 @@ class Factor(object):
         try:
             result = me._data.mul(other._data)
         except Exception as e:
-            print('exception: ', e)
-            print('me:', me._data.index.names)
-            print('other:', other._data.index.names)
+            log.error('Could not multiply factors!?')
+            log.error('exception: ', e)
+            log.error('me:', me._data.index.names)
+            log.error('other:', other._data.index.names)
+            log.exception(e)
 
             raise e
 
@@ -323,7 +294,7 @@ class Factor(object):
 
     @property
     def vars(self):
-        """Return the variables in this node (i.e. the scope) as a set."""
+        """Return the variables in this factor (i.e. the scope) as a *set*."""
         return set(self.scope)
 
     @property
@@ -342,8 +313,7 @@ class Factor(object):
         if self._variable_states is not None:
             return self._variable_states
 
-        index = self._data_without_prefix.index
-        return pybn.index_to_dict(index)
+        return pybn.index_to_dict(self._data.index)
 
     def reorder_scope(self, order=None):
         """Reorder the variables in the scope."""
@@ -353,6 +323,7 @@ class Factor(object):
                 order.sort()
 
             data = self._data.reorder_levels(order)
+            data = data.sort_index()
 
         else:
             data = self._data
@@ -363,7 +334,10 @@ class Factor(object):
         """Project the current factor on Q.
 
         Args:
-            Q (set or str): variable(s) to compute prior marginal over.
+            Q (set or str): variable(s) to compute marginal over.
+
+        Returns:
+            Factor:  marginal distribution over the RVs in Q.
         """
         assert isinstance(Q, (set, str)), "Q should be a set or a string!"
 
@@ -371,6 +345,9 @@ class Factor(object):
             Q = {Q}
 
         vars_to_sum_out = list(set(self.scope) - Q)
+
+        if len(vars_to_sum_out) == 0:
+            return Factor(self)
 
         if self.width == 1:
             return self
@@ -393,8 +370,9 @@ class Factor(object):
         else:
             variable_set = set(variable)
 
-        # if len(variable_set) == 0:
-        #     return Factor(self)
+        if len(variable_set) == 0:
+            # Nothing to sum out ...
+            return Factor(self)
 
         scope = set(self.scope)
 
@@ -409,10 +387,10 @@ class Factor(object):
 
         try:
             summed = unstacked.sum(axis=1)
-        except:
-            print('*** ERROR ***')
-            print(f'Could not sum out {variable_set}')
-            print(unstacked)
+        except Exception as e:
+            log.error(f'Could not sum out {variable_set}')
+            log.error(unstacked)
+            log.exception(e)
             raise
 
         return Factor(summed)
@@ -423,7 +401,6 @@ class Factor(object):
 
     def unstack(self, *args, **kwargs):
         """Proxy for pd.Series.unstack()."""
-        # FIXME: unstack leaks index prefixes ...
         return self._data.unstack(*args, **kwargs)
 
     def dot(self, other):
@@ -450,10 +427,12 @@ class Factor(object):
 
         try:
             f = Factor(stacked)
-        except:
-            print('Could not create Factor from outer product?')
-            print('type(stacked):', type(stacked))
-            print('stacked:', stacked)
+
+        except Exception as e:
+            log.error('Could not create Factor from outer product?')
+            log.error(f'type(stacked): {type(stacked)}')
+            log.error(f'stacked: {stacked}')
+            log.exception(e)
             raise
 
         return f
@@ -462,17 +441,34 @@ class Factor(object):
         """Proxy for pandas.Series.droplevel()"""
         return Factor(self._data.droplevel(level))
 
-    def set_evidence(self, **kwargs):
-        """
-        *** FIXME: Deprecated! This method shouldn't be here. ***
+    def extract_values(self, **kwargs):
+        """Extract entries from the Factor by RV and value.
 
-        Return a reduced factor.
+        Kwargs:
+            dict of states, indexed by RV. E.g. {'G': 'g1'}
         """
+
+        if self.width == 1:
+            values = list(kwargs.values())
+            return self[values[0]]
+
+        # Need to do some trickery to get the correct levels from the
+        # MultiIndex.
+        indices = []
+
+        for level, value in kwargs.items():
+            idx = self._data.index.get_level_values(level) == value
+            indices.append(list(idx))
+
+        zipped = list(zip(*indices))
+        idx = [all(x) for x in zipped]
+        return Factor(self._data[idx])
+
+    def keep_values(self, **kwargs):
+        """Return a reduced factor."""
 
         # when called like set_evidence(D='d1', E='e0'), we'll need to
         # set rows that do not correspond to the evidence to zero.
-
-        kwargs = pybn.add_prefix_to_dict(kwargs)
 
         # Find the (subset of) evidence that's related to this factor's scope.
         levels = [l for l in kwargs.keys() if l in self.scope]
@@ -510,7 +506,6 @@ class Factor(object):
             data = data.reorder_levels(self.scope)
 
         # Remove any prefixes ...
-        idx = pybn.remove_prefix_from_index(data.index)
         variable_states = self.variable_states
 
         return {
