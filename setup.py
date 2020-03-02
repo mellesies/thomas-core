@@ -33,6 +33,14 @@ setup(
     author_email='m.sieswerda@iknl.nl',
     license='Apache 2.0',
     packages=find_namespace_packages(include=['thomas.*']),
+    package_data={
+        "thomas.core": [
+            "VERSION",
+            "data/*.lark",
+            "data/*.json",
+            "data/*.oobn",
+        ],
+    },
     python_requires='>= 3.6',
     install_requires=[
         'lark-parser',
