@@ -3,9 +3,9 @@ import unittest
 import doctest
 import logging
 
-import pybn
-from pybn.bayesiannetwork import DiscreteNetworkNode
-import pybn.examples
+
+from thomas.core.bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
+from thomas.core import examples
 
 log = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 class TestSerialization(unittest.TestCase):
 
     def setUp(self):
-        self.Gs = pybn.examples.get_student_network()
+        self.Gs = examples.get_student_network()
         self.maxDiff = None
 
     def test_basic_setup(self):
@@ -27,7 +27,7 @@ class TestSerialization(unittest.TestCase):
     def test_serialization(self):
         """Test serialization to and loading from dictionary."""
         serialized = self.Gs.as_dict()
-        unserialized = pybn.BayesianNetwork.from_dict(serialized)
+        unserialized = BayesianNetwork.from_dict(serialized)
 
         self.assertDictEqual(serialized, unserialized.as_dict())
 

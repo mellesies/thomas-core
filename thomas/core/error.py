@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """Errors and Exceptions"""
-import pybn
-
 
 class NotInScopeError(Exception):
     def __init__(self, variable, scope):

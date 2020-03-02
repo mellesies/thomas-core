@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 import lark
 
-import pybn
+from ..cpt import CPT
+from .. import bayesiannetwork
 
 GRAMMAR = r"""
     oobn_class: "class" name properties [comment]
@@ -214,14 +215,14 @@ def _create_structure(tree):
             data = data.reshape(-1, len(columns))
             df = pd.DataFrame(data, index=index, columns=columns)
 
-            cpt = pybn.CPT(
+            cpt = CPT(
                 df.stack(),
                 conditioned_variables=[name],
             )
 
         # Else, it's a probability table
         else:
-            cpt = pybn.CPT(
+            cpt = CPT(
                 data,
                 conditioned_variables=[name],
                 variable_states=variable_states
@@ -262,14 +263,14 @@ def _create_bn(structure):
         if None in cpt.index.names:
             cpt.index = cpt.index.droplevel()
 
-        constructor = getattr(pybn.bayesiannetwork, node_properties['type'])
+        constructor = getattr(bayesiannetwork, node_properties['type'])
 
         n = constructor(RV, name, states, description, cpt)
         n.position = position
         nodes.append(n)
 
     edges = structure['edges']
-    return pybn.BayesianNetwork(structure['name'], nodes, edges)
+    return bayesiannetwork.BayesianNetwork(structure['name'], nodes, edges)
 
 def read(filename):
     """Parse the OOBN file and transform it into a sensible dictionary."""

@@ -6,26 +6,29 @@ import logging
 import itertools
 import random
 
-import pybn as bn
-import pybn.examples
-import pybn.reader.oobn
+import thomas.core
+from thomas.core.bayesiannetwork import BayesianNetwork
+from thomas.core import examples
+from thomas.core.reader import oobn
 
 log = logging.getLogger(__name__)
-
-# def load_tests(loader, tests, ignore):
-#     # tests.addTests(doctest.DocTestSuite(...))
-#     return tests
 
 # @unittest.skip
 class TestLungCancerNetwork(unittest.TestCase):
 
     def setUp(self):
-        pkg_path = os.path.dirname(pybn.__file__)
+        pkg_path = os.path.dirname(thomas.core.__file__)
         fullpath = os.path.join(pkg_path, 'data', 'lungcancer.json')
 
-        self.lungcancer = pybn.BayesianNetwork.open(fullpath)
+        self.lungcancer = BayesianNetwork.open(fullpath)
         self.maxDiff = None
         self.places = 3
+
+    def get_OOBN_path(self):
+        """Return the path to the package's lungcancer.oobn"""
+        pkg_path = os.path.dirname(thomas.core.__file__)
+        fullpath = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
+        return fullpath
 
     @unittest.skip
     def test_elimination_order_importance(self):
@@ -66,10 +69,8 @@ class TestLungCancerNetwork(unittest.TestCase):
     def test_node_cTNM(self):
         # cTNM = self.lungcancer.P('cTNM')
         # P = self.lungcancer.compute_marginals(['cTNM'])
-        pkg_path = os.path.dirname(pybn.__file__)
-        fullpath = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
+        bn = oobn.read(self.get_OOBN_path())
 
-        bn = pybn.reader.oobn.read(fullpath)
         P = bn.compute_marginals(['cTNM'])
         cTNM = P['cTNM']
         self.assertAlmostEquals(cTNM['1A'], 0.0966, places=self.places)
@@ -84,10 +85,8 @@ class TestLungCancerNetwork(unittest.TestCase):
     def test_node_cTNM_TNM1A(self):
         # cTNM = self.lungcancer.P('cTNM|TNM=1A')
         # P = self.lungcancer.compute_marginals(['cTNM'], {'TNM': '1A'})
-        pkg_path = os.path.dirname(pybn.__file__)
-        fullpath = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
+        bn = oobn.read(self.get_OOBN_path())
 
-        bn = pybn.reader.oobn.read(fullpath)
         P = bn.compute_marginals(['cTNM'], {'TNM': '1A'})
         cTNM = P['cTNM']
         self.assertAlmostEquals(cTNM['1A'], 0.8402, places=self.places)
@@ -102,10 +101,8 @@ class TestLungCancerNetwork(unittest.TestCase):
     def test_node_T_N0(self):
         # T = self.lungcancer.P('T|N=0')
         # P = self.lungcancer.compute_marginals(['T'], {'N': '0'})
-        pkg_path = os.path.dirname(pybn.__file__)
-        fullpath = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
+        bn = oobn.read(self.get_OOBN_path())
 
-        bn = pybn.reader.oobn.read(fullpath)
         P = bn.compute_marginals(['T'], {'N': '0'})
         T = P['T']
         self.assertAlmostEquals(T['1A'], 0.1917, places=self.places)
@@ -119,10 +116,8 @@ class TestLungCancerNetwork(unittest.TestCase):
     def test_node_cT_T1A_TNM1A(self):
         # cT = self.lungcancer.P('cT|T=1A,TNM=1A')
         # P = self.lungcancer.compute_marginals(['cT'], {'T': '1A', 'TNM': '1A'})
-        pkg_path = os.path.dirname(pybn.__file__)
-        fullpath = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
+        bn = oobn.read(self.get_OOBN_path())
 
-        bn = pybn.reader.oobn.read(fullpath)
         P = bn.compute_marginals(['cT'], {'T': '1A', 'TNM': '1A'})
         cT = P['cT']
         self.assertAlmostEquals(cT['1'],  0.5589, places=self.places)

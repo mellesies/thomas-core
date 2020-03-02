@@ -4,8 +4,8 @@ import unittest
 import doctest
 import logging
 
-import pybn
-import pybn.examples
+from thomas.core.factor import Factor
+from thomas.core import examples
 
 log = logging.getLogger(__name__)
 
@@ -14,15 +14,15 @@ log = logging.getLogger(__name__)
 #     return tests
 
 class TestFactor(unittest.TestCase):
-    
+
     def test_state_order(self):
         """Test that a Factor's (Multi)Index keeps its states in order.
 
             Regression test for GitHub issue #1.
         """
         # P(A)
-        fA = pybn.Factor(
-            [0.6, 0.4], 
+        fA = Factor(
+            [0.6, 0.4],
             {'A': ['a1', 'a0']}
         )
 
@@ -30,8 +30,8 @@ class TestFactor(unittest.TestCase):
         self.assertEquals(fA['a0'], 0.4)
 
         # P(B|A)
-        fB_A = pybn.Factor(
-            [0.2, 0.8, 0.75, 0.25], 
+        fB_A = Factor(
+            [0.2, 0.8, 0.75, 0.25],
             {'A': ['a1', 'a0'],'B': ['b1', 'b0']}
         )
 
@@ -43,7 +43,7 @@ class TestFactor(unittest.TestCase):
     def test_multiplication(self):
         """Test factor multiplication."""
         # Get the Factors for the Sprinkler network
-        fA, fB_A, fC_A, fD_BC, fE_C = pybn.examples.get_sprinkler_factors()
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
 
         # Multiplying the factor with a *prior* with a *conditional* distribution, yields
         # a *joint* distribution.
@@ -60,7 +60,7 @@ class TestFactor(unittest.TestCase):
     def test_summing_out(self):
         """Test summing out variables."""
         # Get the Factors for the Sprinkler network
-        fA, fB_A, fC_A, fD_BC, fE_C = pybn.examples.get_sprinkler_factors()
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
 
         # Multiplying the factor with a *prior* with a *conditional* distribution, yields
         # a *joint* distribution.
@@ -78,7 +78,7 @@ class TestFactor(unittest.TestCase):
     def test_summing_out_all(self):
         """Test summing out variables."""
         # Get the Factors for the Sprinkler network
-        fA, fB_A, fC_A, fD_BC, fE_C = pybn.examples.get_sprinkler_factors()
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
 
         # Multiplying the factor with a *prior* with a *conditional* distribution, yields
         # a *joint* distribution.
@@ -92,7 +92,7 @@ class TestFactor(unittest.TestCase):
 
     def test_project(self):
         """Test the `project` function."""
-        fA, fB_A, fC_B = pybn.examples.get_example7_factors()
+        fA, fB_A, fC_B = examples.get_example7_factors()
         fAfB = fA * fB_A
         fBfC = fAfB.sum_out('A') * fC_B
 
@@ -103,7 +103,7 @@ class TestFactor(unittest.TestCase):
 
     def test_serialization_simple(self):
         """Test the JSON serialization."""
-        [fA, fB_A, fC_A, fD_BC, fE_C] = pybn.examples.get_sprinkler_factors()
+        [fA, fB_A, fC_A, fD_BC, fE_C] = examples.get_sprinkler_factors()
 
         dict_repr = fA.as_dict()
 
@@ -113,13 +113,13 @@ class TestFactor(unittest.TestCase):
 
         self.assertTrue(dict_repr['type'] == 'Factor')
 
-        fA2 = pybn.Factor.from_dict(dict_repr)
+        fA2 = Factor.from_dict(dict_repr)
         self.assertEquals(fA.scope, fA2.scope)
         self.assertEquals(fA.variable_states, fA2.variable_states)
 
     def test_serialization_complex(self):
         """Test the JSON serialization."""
-        [fA, fB_A, fC_A, fD_BC, fE_C] = pybn.examples.get_sprinkler_factors()
+        [fA, fB_A, fC_A, fD_BC, fE_C] = examples.get_sprinkler_factors()
 
         dict_repr = fB_A.as_dict()
 
@@ -128,8 +128,8 @@ class TestFactor(unittest.TestCase):
             self.assertTrue(key in dict_repr)
 
         self.assertTrue(dict_repr['type'] == 'Factor')
-        
-        fB_A2 = pybn.Factor.from_dict(dict_repr)
+
+        fB_A2 = Factor.from_dict(dict_repr)
         self.assertEquals(fB_A.scope, fB_A2.scope)
         self.assertEquals(fB_A.variable_states, fB_A2.variable_states)
 

@@ -5,8 +5,10 @@ import os
 import numpy as np
 import pandas as pd
 
-import pybn
-from pybn import Factor, CPT, BayesianNetwork
+from .factor import Factor
+from .cpt import CPT
+
+from .bayesiannetwork import BayesianNetwork
 
 def subset(full_dict, keys):
     """Return a subset of a dict."""

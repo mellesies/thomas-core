@@ -4,8 +4,8 @@ import unittest
 import doctest
 import logging
 
-import pybn
-import pybn.examples
+from thomas.core.bag import Bag
+from thomas.core import examples
 
 log = logging.getLogger(__name__)
 
@@ -14,20 +14,20 @@ log = logging.getLogger(__name__)
 #     return tests
 
 class TestBag(unittest.TestCase):
-    
+
     def test_scope(self):
         """Test a Bag's scope."""
         # Get the Factors for the Sprinkler network
-        factors = pybn.examples.get_sprinkler_factors()        
-        bag = pybn.Bag('Sprinkler', factors)
+        factors = examples.get_sprinkler_factors()
+        bag = Bag('Sprinkler', factors)
 
         self.assertEquals(bag.scope, {'A', 'B', 'C', 'D', 'E'})
 
     def test_variable_elimination_single(self):
         """Test the variable elimination algorithm."""
         # Get the Factors for the Sprinkler network
-        factors = pybn.examples.get_sprinkler_factors()        
-        bag = pybn.Bag('Sprinkler', factors)
+        factors = examples.get_sprinkler_factors()
+        bag = Bag('Sprinkler', factors)
 
         # Compute the prior over C
         fC = bag.eliminate(['C'])
@@ -39,8 +39,8 @@ class TestBag(unittest.TestCase):
     def test_variable_elimination_multiple(self):
         """Test the variable elimination algorithm."""
         # Get the Factors for the Sprinkler network
-        factors = pybn.examples.get_sprinkler_factors()        
-        bag = pybn.Bag('Sprinkler', factors)
+        factors = examples.get_sprinkler_factors()
+        bag = Bag('Sprinkler', factors)
 
         # Compute the joint over A and C
         fAC = bag.eliminate(['A', 'C'])
@@ -53,8 +53,8 @@ class TestBag(unittest.TestCase):
 
     def test_variable_elimination_with_evidence(self):
         """Test the variable elimination algorithm."""
-        factors = pybn.examples.get_sprinkler_factors()        
-        bag = pybn.Bag('Sprinkler', factors)
+        factors = examples.get_sprinkler_factors()
+        bag = Bag('Sprinkler', factors)
 
         # Compute the (unnormalized) factor over C and A=a1
         fC_a1 = bag.eliminate(['C'], {'A': 'a1'})
@@ -64,8 +64,8 @@ class TestBag(unittest.TestCase):
 
     def test_compute_posterior(self):
         """Test the function Bag.compute_posterior()."""
-        factors = pybn.examples.get_student_CPTs()        
-        bag = pybn.Bag('Student', list(factors.values()))
+        factors = examples.get_student_CPTs()
+        bag = Bag('Student', list(factors.values()))
 
         I = bag.compute_posterior(['I'], {}, [], {})
         self.assertAlmostEquals(I['i0'], 0.7, places=3)
@@ -81,8 +81,8 @@ class TestBag(unittest.TestCase):
 
     def test_MAP(self):
         """Test the BayesianNetwork.MAP() function."""
-        factors = pybn.examples.get_student_CPTs()        
-        bag = pybn.Bag('Student', list(factors.values()))
+        factors = examples.get_student_CPTs()
+        bag = Bag('Student', list(factors.values()))
 
         argmax_I = bag.MAP(['I'], {}, False)
         self.assertEquals(argmax_I, 'i0')
@@ -96,8 +96,8 @@ class TestBag(unittest.TestCase):
 
     def test_P(self):
         """Test the function BayesianNetwork.P()."""
-        factors = pybn.examples.get_student_CPTs()        
-        bag = pybn.Bag('Student', list(factors.values()))
+        factors = examples.get_student_CPTs()
+        bag = Bag('Student', list(factors.values()))
 
         I = bag.P('I')
         self.assertAlmostEquals(I['i0'], 0.7, places=3)
@@ -114,8 +114,8 @@ class TestBag(unittest.TestCase):
 
     def test_JPT(self):
         """Test Joint Probability Table."""
-        factors = pybn.examples.get_student_CPTs()        
-        bag = pybn.Bag('Student', list(factors.values()))
+        factors = examples.get_student_CPTs()
+        bag = Bag('Student', list(factors.values()))
 
         JPT = bag.eliminate(list(bag.scope)).normalize()
         self.assertEquals(JPT.sum(), 1)

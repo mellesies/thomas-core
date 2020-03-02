@@ -12,7 +12,7 @@ from functools import reduce
 
 import json
 
-import pybn
+from . import ProbabilisticModel, remove_none_values_from_dict
 from .factor import Factor, mul
 from .cpt import CPT
 
@@ -21,7 +21,7 @@ from . import error
 # ------------------------------------------------------------------------------
 # Bag
 # ------------------------------------------------------------------------------
-class Bag(pybn.ProbabilisticModel):
+class Bag(ProbabilisticModel):
     """Bag of factors."""
 
     def __init__(self, name='', factors=None):
@@ -176,7 +176,7 @@ class Bag(pybn.ProbabilisticModel):
         Returns:
             CPT
         """
-        ev = pybn.remove_none_values_from_dict(ev)
+        ev = remove_none_values_from_dict(ev)
 
         # Get a list of *all* variables to query
         query_vars = list(qv.keys()) + qd

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Factor: the basis for all reasoning."""
+"""BayesianNetwork"""
 import sys, os
 from datetime import datetime as dt
 
@@ -703,7 +703,7 @@ class DiscreteNetworkNode(Node):
         super().__init__(RV, name, description)
 
         self.states = states or []
-        self.position = None
+        self.position = [0, 0]
 
         if cpt is not None:
             self.cpt = cpt
