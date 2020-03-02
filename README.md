@@ -1,5 +1,6 @@
 [![Coverage Status](https://coveralls.io/repos/github/mellesies/py-bn/badge.svg?branch=master)](https://coveralls.io/github/mellesies/thomas-core?branch=thomas)
 [![Build Status](https://travis-ci.org/mellesies/thomas-core.svg?branch=thomas)](https://travis-ci.org/mellesies/thomas-core)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mellesies/thomas-core/thomas?filepath=notebooks%2F4.%20Bayesian%20Networks.ipynb)
 
 # Thomas
 Very simple (almost naive ;-) bayesian network implementation.
@@ -39,4 +40,8 @@ print(Gs.P('S|I=i1'))
 # dtype: float64
 ```
 
-For details have a look at the notebooks, code or use pydoc.
+Alternatively, you can have a go at the example notebooks through [Binder](https://mybinder.org):
+* [notebooks/1. Factors.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/thomas?filepath=notebooks%2F1.%20Factors.ipynb)
+* [notebooks/2. Bags of factors.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/thomas?filepath=notebooks%2F2.%20Bags%20of%20factors.ipynb)
+* [notebooks/3. Conditional probability tables.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/thomas?filepath=notebooks%2F3.%20Conditional%20probability%20tables.ipynb)
+* [notebooks/4. Bayesian Networks.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/thomas?filepath=notebooks%2F4.%20Bayesian%20Networks.ipynb)
