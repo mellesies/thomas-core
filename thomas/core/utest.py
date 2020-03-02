@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
-
+import os
 import sys
 import logging
 import unittest
@@ -140,7 +139,7 @@ def run_tests(suites):
   return(result)
 
 def run():
-  suites = find_tests('./thomas/core')
+  suites = find_tests(os.path.dirname(__file__))
   return run_tests(suites)
 
 if __name__ == '__main__':
