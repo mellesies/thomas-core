@@ -298,6 +298,16 @@ class BayesianNetwork(ProbabilisticModel):
         G_moral = nx.algorithms.moral.moral_graph(G)
         return list(G_moral.edges)
 
+    # -- parameter estimation
+    def EM_learning(self, data, reset_CPTs=True):
+        """Perform parameter learning.
+        Sources:
+            * https://www.cse.ust.hk/bnbook/pdf/l07.h.pdf
+            * https://www.youtube.com/watch?v=NDoHheP2ww4
+        """
+        pass
+
+
     # --- inference ---
     def get_node_elimination_order(self):
         """Return a naïve elimination ordering, based on nodes' degree."""
@@ -718,6 +728,17 @@ class DiscreteNetworkNode(Node):
     @property
     def cpt(self):
         """Return the Node's CPT."""
+        if self._cpt is None:
+            # Create a new, uniform,CPT
+            vs = {}
+
+            for p in self.parents:
+                vs[p.RV] = p.states
+
+            vs[self.RV] = self.states
+
+            self._cpt = CPT(1, variable_states=vs).normalize()
+
         return self._cpt
 
     @cpt.setter
@@ -828,7 +849,6 @@ class DiscreteNetworkNode(Node):
             e  = "Conditioning variables in CPT should correspond to Node's"
             e += " parents. Order is important!"
             raise Exception(e)
-
 
     # --- (de)serialization ---
     def as_dict(self):

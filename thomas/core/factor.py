@@ -312,7 +312,7 @@ class Factor(object):
         if self._variable_states is not None:
             return self._variable_states
 
-        return thomas.core.index_to_dict(self._data.index)
+        return thomas.core.base.index_to_dict(self._data.index)
 
     def reorder_scope(self, order=None):
         """Reorder the variables in the scope."""

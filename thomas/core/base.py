@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+import pandas as pd
+
+def index_to_dict(idx):
+    if isinstance(idx, pd.MultiIndex):
+        return {i.name: list(i) for i in idx.levels}
+
+    return {idx.name: list(idx)}
+
 
 def remove_none_values_from_dict(dict_):
    """Remove none values, like `None` and `np.nan` from the dict."""
