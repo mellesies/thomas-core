@@ -49,6 +49,5 @@ setup(
         'pandas',
         'termcolor',
         'matplotlib',
-        'gzip',
     ],
 )
