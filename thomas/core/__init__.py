@@ -46,6 +46,11 @@ def enable_logging_to_console(enable=True):
     else:
         log.setLevel(logging.CRITICAL)
 
+def get_pkg_data(filename, path='data'):
+    """Return data contained in this pacakge."""
+    directory = os.path.dirname(__file__)
+    return os.path.join(directory, path, filename)
+
 
 # Convenience imports
 from .base import ProbabilisticModel
