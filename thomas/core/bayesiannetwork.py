@@ -16,10 +16,10 @@ from functools import reduce
 
 import json
 
-from . import parse_query_string
 from .factor import Factor, mul
 from .cpt import CPT
 
+from .base import ProbabilisticModel
 from .bag import Bag
 from .junctiontree import JunctionTree, TreeNode
 
@@ -146,7 +146,7 @@ def merge_clusters(clusters):
 # ------------------------------------------------------------------------------
 # BayesianNetwork
 # ------------------------------------------------------------------------------
-class BayesianNetwork(object):
+class BayesianNetwork(ProbabilisticModel):
     """A Bayesian Network (BN) consistst of Nodes and directed Edges.
 
     A BN is essentially a Directed Acyclic Graph (DAG) where each Node
@@ -369,8 +369,7 @@ class BayesianNetwork(object):
         return self.junction_tree.get_marginals(qd)
 
     def compute_posterior(self, qd, qv, ed, ev, use_VE=False):
-        """Compute the (posterior) probability of query variables given
-        evidence *always* using a junction tree.
+        """Compute the (posterior) probability of query given evidence.
 
         The query P(I,G=g1|D,L=l0) would imply:
             qd = ['I']
@@ -421,27 +420,7 @@ class BayesianNetwork(object):
         if qv:
             result = result.extract_values(**qv)
 
-        cpt = CPT(result, conditioned_variables=query_vars)
-        return cpt
-
-    def P(self, query, use_VE=False):
-        """Return the probability for a query.
-
-        P('I,G=g1|D,L=l0') is equivalent to calling compute_posterior with:
-            qd = ['I']
-            qv = {'G': 'g1'}
-            ed = ('D',)
-            ev = {'L': 'l0'}
-
-        Returns:
-            CPT
-        """
-        qd, qv, ed, ev = parse_query_string(query)
-        log.debug(f'P({query})')
-        log.debug(f'  qd: {qd}, qv: {qv}')
-        log.debug(f'  ed: {ed}, ev: {ev}')
-
-        return self.compute_posterior(qd, qv, ed, ev, use_VE=False)
+        return CPT(result, conditioned_variables=query_vars)
 
     def reset_evidence(self, RV=None):
         """Reset evidence for one or more RVs."""

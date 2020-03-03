@@ -12,7 +12,7 @@ from functools import reduce
 
 import json
 
-from . import ProbabilisticModel, remove_none_values_from_dict
+from .base import ProbabilisticModel, remove_none_values_from_dict
 from .factor import Factor, mul
 from .cpt import CPT
 
