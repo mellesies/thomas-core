@@ -18,6 +18,7 @@ import json
 
 from .factor import Factor, mul
 from .cpt import CPT
+from .jpt import JPT
 
 from .base import ProbabilisticModel
 from .bag import Bag
@@ -226,6 +227,16 @@ class BayesianNetwork(ProbabilisticModel):
     jointree = junction_tree
 
     @property
+    def vars(self):
+        """Return the variables in this BN (i.e. the scope) as a *set*."""
+        return set(self.nodes.keys())
+
+    @property
+    def scope(self):
+        """Return the variables in this BN (i.e. the scope) as a *list*."""
+        return list(self.nodes.keys())
+
+    @property
     def states(self):
         """Return a dict of states, indexed by random variable."""
         return {RV: self.nodes[RV].states for RV in self.nodes}
@@ -307,6 +318,37 @@ class BayesianNetwork(ProbabilisticModel):
         """
         pass
 
+    def ML_estimation(self, df):
+        """Perform Maximum Likelihood estimation of the BN parameters.
+
+        *** Note: this will overwrite any CPTs already set. ***
+
+        Args:
+            df (pandas.Dataframe): dataset that contains columns with names
+                corresponding to the variables in this BN's scope.
+        """
+        # Determine the empirical distribution by ..
+        #   1. counting the occurrences of combinations for the variables in
+        #      scope of this BN; and
+        #   2. normalizing the result
+        #
+        # Note that the count opereation will also *drop* any NAs in the
+        # dataframe.
+        subset = df[self.scope]
+        subset['count'] = 1
+
+        counts = subset.groupby(self.scope).count()
+        counts = counts['count']
+
+        empirical = counts / counts.sum()
+
+        # The empirical distribution may not contain all combinations of
+        # variable states; this fixes that by setting all missing entries to 0.
+        jpt = JPT.from_incomplete_jpt(empirical)
+
+        for name, node in self.nodes.items():
+            cpt = jpt.compute_dist(node.conditioned, node.conditioning)
+            node.cpt = cpt
 
     # --- inference ---
     def get_node_elimination_order(self):
@@ -499,6 +541,13 @@ class BayesianNetwork(ProbabilisticModel):
             alpha=1.0,
             with_labels=True,
         )
+
+    def print_cpts(self):
+        """Print all CPTs to stdout."""
+        for name, node in self.nodes.items():
+            print('-' * 60)
+            print(node.cpt)
+            print()
 
     # --- (de)serialization and conversion ---
     def as_networkx(self):
@@ -724,6 +773,16 @@ class DiscreteNetworkNode(Node):
             return [parents[p] for p in sort_order]
 
         return self._parents
+
+    @property
+    def conditioned(self):
+        """Return the conditioned variable(s)."""
+        return self.cpt.conditioned
+
+    @property
+    def conditioning(self):
+        """Return the conditioning variable(s)."""
+        return self.cpt.conditioning
 
     @property
     def cpt(self):

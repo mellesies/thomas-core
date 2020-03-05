@@ -15,6 +15,9 @@ def remove_none_values_from_dict(dict_):
    return result
 
 
+# ------------------------------------------------------------------------------
+# ProbabilisticModel
+# ------------------------------------------------------------------------------
 class ProbabilisticModel(object):
 
     @classmethod

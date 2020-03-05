@@ -13,7 +13,6 @@ class TestResult(unittest.TextTestResult):
     super(TestResult, self).__init__(stream, descriptions, verbosity)
     self.log = log
 
-
   def startTest(self, test):
     unittest.result.TestResult.startTest(self, test)
 
@@ -21,7 +20,6 @@ class TestResult(unittest.TextTestResult):
       # self.stream.write("%-85s " % self.getDescription(test))
       self.stream.write("%-85s " % str(test))
       self.stream.flush()
-
 
   def addError(self, test, err):
     unittest.result.TestResult.addError(self, test, err)
@@ -35,7 +33,6 @@ class TestResult(unittest.TextTestResult):
 
     self.log.error("%-85s %s" % (test, error))
     self.log.exception(err[1])
-
 
   def addFailure(self, test, err):
     unittest.result.TestResult.addFailure(self, test, err)
@@ -58,7 +55,6 @@ class TestResult(unittest.TextTestResult):
 
     self.log.error('')
 
-
   def addSkip(self, test, reason):
     unittest.result.TestResult.addSkip(self, test, reason)
     skipped = "[SKIPPED] (%s)" % reason
@@ -70,7 +66,6 @@ class TestResult(unittest.TextTestResult):
       self.stream.flush()
 
     self.log.info("%-85s %s" % (test, skipped))
-
 
   def addSuccess(self, test):
     unittest.result.TestResult.addSuccess(self, test)
@@ -93,7 +88,6 @@ class TestRunner(unittest.TextTestRunner):
     super(TestRunner, self).__init__(stream, descriptions, verbosity, failfast,
                                      buffer, resultclass)
     self.log = log
-
 
   def _makeResult(self):
     return self.resultclass(self.stream, self.descriptions,

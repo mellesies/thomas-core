@@ -70,11 +70,10 @@ class Bag(ProbabilisticModel):
         """Perform variable elimination."""
         if e is None: e = {}
 
-        # Initialize the list of factors to the pruned set. self.prune() should
-        # be implemented by subclasses with more knowledge of the structure
+        # Initialize the list of factors
         factors = list(self._factors)
 
-        # Apply the evidence to the pruned set.
+        # Apply the evidence
         try:
             factors = [f.keep_values(**e) for f in factors]
         except error.InvalidStateError as e:
@@ -200,7 +199,6 @@ class Bag(ProbabilisticModel):
 
         # If query values were specified we can extract them from the factor.
         if qv:
-            levels = list(qv.keys())
             values = list(qv.values())
 
             if result.width == 1:

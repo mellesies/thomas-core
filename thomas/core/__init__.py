@@ -55,6 +55,7 @@ def get_pkg_data(filename, path='data'):
 # Convenience imports
 from .base import ProbabilisticModel
 from .factor import Factor
+from .jpt import JPT
 from .cpt import CPT
 from .bag import Bag
 from .bayesiannetwork import BayesianNetwork

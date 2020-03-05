@@ -7,6 +7,7 @@ import pandas as pd
 
 from .factor import Factor
 from .cpt import CPT
+from .jpt import JPT
 
 from .bayesiannetwork import BayesianNetwork
 
@@ -72,7 +73,11 @@ def get_student_network():
     return BayesianNetwork.from_CPTs('Student', P.values())
 
 def get_sprinkler_factors():
-    """Return the factors for the Sprinkler Bayesian Network."""
+    """Return the factors for the Sprinkler Bayesian Network.
+
+    Data copied from "Modeling and Reasoning with Bayesian Networks"
+    (page 127-128) by Adnan Darwiche (2009).
+    """
     states = {
         'A': ['a1', 'a0'],
         'B': ['b1', 'b0'],
@@ -112,6 +117,28 @@ def get_sprinkler_factors():
     )
 
     return [fA, fB_A, fC_A, fD_BC, fE_C]
+
+def get_sprinkler_jpt():
+    """Return the JPT for the Sprinkler network.
+
+    Data copied from "Modeling and Reasoning with Bayesian Networks"
+    (page 127-128) by Adnan Darwiche (2009).
+    """
+    states = {
+        'A': ['a1', 'a0'],
+        'B': ['b1', 'b0'],
+        'C': ['c1', 'c0'],
+        'D': ['d1', 'd0'],
+        'E': ['e1', 'e0'],
+    }
+
+    data = [0.06384, 0.02736, 0.00336, 0.00144, 0, 0.02160,
+            0, 0.00240, 0.21504, 0.09216, 0.05376, 0.02304,
+            0, 0, 0, 0.09600, 0.01995, 0.00855, 0.00105,
+            0.00045, 0, 0.24300, 0, 0.02700, 0.00560, 0.00240,
+            0.00140, 0.00060, 0, 0, 0, 0.090]
+
+    return JPT(data, states)
 
 def get_sprinkler_network():
     """Return the Sprinkler Bayesian Network."""

@@ -15,13 +15,14 @@ PKG_DESC = 'Simple (almost naive ;) bayesian network implementation'
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     PKG_DESCRIPTION = f.read()
 
+
 # Read the API version from disk. This file should be located in the package
 # folder, since it's also used to set the pkg.__version__ variable.
 with open(path.join(here, 'thomas', 'core', 'VERSION')) as fp:
     PKG_VERSION = fp.read()
 
 
-
+# Setup the package
 setup(
     name=PKG_NAME,
     version=PKG_VERSION,

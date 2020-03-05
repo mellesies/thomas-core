@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
 import unittest
 import doctest
 import logging
@@ -8,10 +7,6 @@ from thomas.core.bag import Bag
 from thomas.core import examples
 
 log = logging.getLogger(__name__)
-
-# def load_tests(loader, tests, ignore):
-#     # tests.addTests(doctest.DocTestSuite(...))
-#     return tests
 
 class TestBag(unittest.TestCase):
 
@@ -68,16 +63,21 @@ class TestBag(unittest.TestCase):
         bag = Bag('Student', list(factors.values()))
 
         I = bag.compute_posterior(['I'], {}, [], {})
-        self.assertAlmostEqual(I['i0'], 0.7, places=3)
-        self.assertAlmostEqual(I['i1'], 0.3, places=3)
+        self.assertAlmostEqual(I['i0'], 0.70, places=2)
+        self.assertAlmostEqual(I['i1'], 0.30, places=2)
 
         S_i1 = bag.compute_posterior(['S'], {}, [], {'I': 'i1'})
-        self.assertAlmostEqual(S_i1['s0'], 0.2, places=3)
-        self.assertAlmostEqual(S_i1['s1'], 0.8, places=3)
+        self.assertAlmostEqual(S_i1['s0'], 0.20, places=2)
+        self.assertAlmostEqual(S_i1['s1'], 0.80, places=2)
 
         S_i0 = bag.compute_posterior(['S'], {}, [], {'I': 'i0'})
-        self.assertAlmostEqual(S_i0['s0'], 0.95, places=3)
-        self.assertAlmostEqual(S_i0['s1'], 0.05, places=3)
+        self.assertAlmostEqual(S_i0['s0'], 0.95, places=2)
+        self.assertAlmostEqual(S_i0['s1'], 0.05, places=2)
+
+        G_I = bag.compute_posterior(['G'], {}, ['I'], {})
+        self.assertAlmostEqual(G_I['i0', 'g1'], 0.20, places=2)
+        self.assertAlmostEqual(G_I['i0', 'g2'], 0.34, places=2)
+        self.assertAlmostEqual(G_I['i0', 'g3'], 0.46, places=2)
 
     def test_MAP(self):
         """Test the BayesianNetwork.MAP() function."""
@@ -117,5 +117,5 @@ class TestBag(unittest.TestCase):
         factors = examples.get_student_CPTs()
         bag = Bag('Student', list(factors.values()))
 
-        JPT = bag.eliminate(list(bag.scope)).normalize()
-        self.assertAlmostEqual(JPT.sum(), 1, places=5)
+        jpt = bag.eliminate(list(bag.scope)).normalize()
+        self.assertAlmostEqual(jpt.sum(), 1, places=5)

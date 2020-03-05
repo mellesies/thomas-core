@@ -16,7 +16,7 @@ import logging
 log = logging.getLogger('pybn')
 
 import thomas.core
-
+import thomas.core.base
 
 # ------------------------------------------------------------------------------
 # Helper functions.
@@ -124,6 +124,14 @@ class Factor(object):
         """repr(f) <==> f.__repr__()"""
         return f'{self.display_name}\n{repr(self._data)}'
 
+    def __add__(self, other):
+        """A + B <=> A.__add__(B)"""
+        return self.add(other)
+
+    def __radd__(self, other):
+        """A + B <=> A.__radd__(B)"""
+        return self.add(other)
+
     def __mul__(self, other):
         """A * B <=> A.mul(B)"""
         return self.mul(other)
@@ -202,10 +210,23 @@ class Factor(object):
         """Sum all values of the factor."""
         return self._data.sum()
 
+    def add(self, other):
+        """A + B <=> A.__add__(B)"""
+        if isinstance(other, (pd.Series, float, np.float, np.float64)):
+            # Add the data as pd.Series
+            f2 = self._data.add(other)
+            f2[f2.isna()] = 0
+            return Factor(f2)
+
+        elif isinstance(other, Factor):
+            return Factor(self._data.add(other._data))
+
+        raise Exception(f'Unsure how to add {type(other)}')
+
     def mul(self, other):
         """A * B <=> A.mul(B)"""
         if isinstance(other, (float, np.float, np.float64)):
-            return Factor(self._data.mul(other, *args, **kwargs), self.variable_states)
+            return Factor(self._data.mul(other), self.variable_states)
 
         elif isinstance(other, Factor):
             if (not self.overlaps_with(other)
@@ -338,6 +359,9 @@ class Factor(object):
         Returns:
             Factor:  marginal distribution over the RVs in Q.
         """
+        if isinstance(Q, (list, tuple)):
+            Q = set(Q)
+
         assert isinstance(Q, (set, str)), "Q should be a set or a string!"
 
         if isinstance(Q, str):
