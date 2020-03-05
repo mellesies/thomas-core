@@ -116,7 +116,6 @@ class Factor(object):
 
         elif (isinstance(data, pd.Series)
             and isinstance(data.index, (pd.Index, pd.MultiIndex))):
-                # TODO: should we make sure that the index is prefixed?
                 data = data.copy()
                 idx = data.index
 
@@ -128,8 +127,6 @@ class Factor(object):
         else:
             msg =  'data should either be a pandas.Series *with* a proper'
             msg += ' index or variable_states should be provided.'
-            print('Oh dear: ', type(data))
-            print('variable_states: ', variable_states)
             raise Exception(msg)
 
         if np.issubdtype(type(data), np.integer):
@@ -146,27 +143,21 @@ class Factor(object):
         """A + B <=> A.__add__(B)"""
         return self.add(other)
 
-    def __radd__(self, other):
-        """A + B <=> A.__radd__(B)"""
-        return self.add(other)
+    # def __radd__(self, other):
+    #     """A + B <=> A.__radd__(B)"""
+    #     return self.add(other)
 
     def __mul__(self, other):
         """A * B <=> A.mul(B)"""
         return self.mul(other)
 
-    def __rmul__(self, other):
-        """A * B <=> A.mul(B)"""
-        return self.mul(other)
+    # def __rmul__(self, other):
+    #     """A * B <=> A.mul(B)"""
+    #     return self.mul(other)
 
     def __truediv__(self, other):
         """A / B <=> A.div(B)"""
         return self.div(other)
-
-    # TODO: not sure if this is a good idea or whether it should return
-    #       an element-wise comparison (like Pandas does)
-    # def __eq__(self, other):
-    #     """x == y <==> x.__eq__(y)"""
-    #     return self._data.equals(other._data)
 
     def __getitem__(self, key):
         """factor[x] <==> factor.__getitem__(x)"""
@@ -190,6 +181,39 @@ class Factor(object):
     def values(self):
         """Return the factor values as an np.array"""
         return self._data.values
+
+    @property
+    def display_name(self):
+        names = [n for n in self._data.index.names if n is not None]
+        names = ','.join(names)
+
+        if not names:
+            names = '?'
+
+        return f'factor({names})'
+
+    @property
+    def vars(self):
+        """Return the variables in this factor (i.e. the scope) as a *set*."""
+        return set(self.scope)
+
+    @property
+    def scope(self):
+        """Return the scope of this factor."""
+        return list(self._data.index.names)
+
+    @property
+    def width(self):
+        """Return the width of this factor."""
+        return len(self.scope)
+
+    @property
+    def variable_states(self):
+        """Return a dict of variable states."""
+        if self._variable_states is not None:
+            return self._variable_states
+
+        return thomas.core.base.index_to_dict(self._data.index)
 
     @classmethod
     def _index_from_variable_states(cls, variable_states):
@@ -230,7 +254,7 @@ class Factor(object):
 
     def add(self, other):
         """A + B <=> A.__add__(B)"""
-        if isinstance(other, (pd.Series, float, np.float, np.float64)):
+        if isinstance(other, (pd.Series, int, float, np.float, np.float64)):
             # Add the data as pd.Series
             f2 = self._data.add(other)
             f2[f2.isna()] = 0
@@ -243,7 +267,8 @@ class Factor(object):
 
     def mul(self, other):
         """A * B <=> A.mul(B)"""
-        if isinstance(other, (float, np.float, np.float64)):
+        if isinstance(other, (int, float, np.float, np.float64)):
+            # Handle multiplication with scalars quick and easy.
             return Factor(self._data.mul(other), self.variable_states)
 
         elif isinstance(other, Factor):
@@ -254,8 +279,10 @@ class Factor(object):
             # If we're here, other is a Factor *with* overlap with `self`
             other = other.reorder_scope()
 
-        else:
-            log.warn(f'Unsure how to multiply {type(other)} with a Factor')
+        elif isinstance(other, pd.Series):
+            # This only works if the series has a proper (multi)index set.
+            other = Factor(other)
+
 
         # Safety precaution. Really only necessary when multiplying a Series or
         # another Factor.
@@ -289,13 +316,13 @@ class Factor(object):
 
         try:
             result = me._data.mul(other._data)
+
         except Exception as e:
             log.error('Could not multiply factors!?')
             log.error('exception: ', e)
             log.error('me:', me._data.index.names)
             log.error('other:', other._data.index.names)
             log.exception(e)
-
             raise e
 
         return Factor(result)
@@ -319,39 +346,6 @@ class Factor(object):
             other_scope = set(other)
 
         return len(own_scope.intersection(other_scope)) > 0
-
-    @property
-    def display_name(self):
-        names = [n for n in self._data.index.names if n is not None]
-        names = ','.join(names)
-
-        if not names:
-            names = '?'
-
-        return f'factor({names})'
-
-    @property
-    def vars(self):
-        """Return the variables in this factor (i.e. the scope) as a *set*."""
-        return set(self.scope)
-
-    @property
-    def scope(self):
-        """Return the scope of this factor."""
-        return list(self._data.index.names)
-
-    @property
-    def width(self):
-        """Return the width of this factor."""
-        return len(self.scope)
-
-    @property
-    def variable_states(self):
-        """Return a dict of variable states."""
-        if self._variable_states is not None:
-            return self._variable_states
-
-        return thomas.core.base.index_to_dict(self._data.index)
 
     def reorder_scope(self, order=None):
         """Reorder the variables in the scope."""

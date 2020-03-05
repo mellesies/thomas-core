@@ -4,7 +4,9 @@ import unittest
 import doctest
 import logging
 
-from thomas.core.factor import Factor
+import numpy as np
+
+from thomas.core.factor import Factor, mul
 from thomas.core import examples
 
 log = logging.getLogger(__name__)
@@ -14,6 +16,63 @@ log = logging.getLogger(__name__)
 #     return tests
 
 class TestFactor(unittest.TestCase):
+
+    def test_creation(self):
+        """Test creating Factors."""
+        with self.assertRaises(Exception) as context:
+            Factor(0)
+
+        fA = Factor(
+            [0.6, 0.4],
+            {'A': ['a1', 'a0']}
+        )
+
+        self.assertEqual(repr(fA), 'factor(A)\nA\na1    0.6\na0    0.4\ndtype: float64')
+
+    def test_add(self):
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+
+        fAB = fA * fB_A
+        f2 = fA.add(fAB)
+
+        self.assertTrue(isinstance(f2, Factor))
+
+    def test_mul(self):
+        """Test factor.mul()."""
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+
+        # int
+        fA2 = mul(fA, 2)
+        self.assertTrue(isinstance(fA2, Factor))
+        self.assertEqual(fA2.scope, ['A'])
+        self.assertEqual(fA2.sum(), 2)
+
+        # float
+        fA2 = mul(fA, 2.0)
+        self.assertTrue(isinstance(fA2, Factor))
+        self.assertEqual(fA2.scope, ['A'])
+        self.assertEqual(fA2.sum(), 2)
+
+        # Two Factors
+        fAB = mul(fA, fB_A)
+        self.assertTrue(isinstance(fAB, Factor))
+        self.assertEqual(fAB.scope, ['A', 'B'])
+
+        # Factors * Series
+        fAB = mul(fA, fB_A.as_series())
+        self.assertTrue(isinstance(fAB, Factor))
+        self.assertEqual(fAB.scope, ['A', 'B'])
+
+        # Series * Factor
+        fAB = mul(fA.as_series(), fB_A)
+        self.assertTrue(isinstance(fAB, Factor))
+        self.assertEqual(fAB.scope, ['A', 'B'])
+
+    def test_getitem(self):
+        """Test casting to Factor when accessing Factor by index."""
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+        fAB = fA * fB_A
+        self.assertTrue(isinstance(fAB['a0'], Factor))
 
     def test_state_order(self):
         """Test that a Factor's (Multi)Index keeps its states in order.
@@ -132,4 +191,13 @@ class TestFactor(unittest.TestCase):
         fB_A2 = Factor.from_dict(dict_repr)
         self.assertEquals(fB_A.scope, fB_A2.scope)
         self.assertEquals(fB_A.variable_states, fB_A2.variable_states)
+
+    def test_values(self):
+        """Test cast to np.array."""
+        fA = Factor(
+            [0.6, 0.4],
+            {'A': ['a1', 'a0']}
+        )
+
+        self.assertTrue(isinstance(fA.values, np.ndarray))
 

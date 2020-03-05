@@ -223,6 +223,10 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEqual(S_i0['s0'], 0.95, places=3)
         self.assertAlmostEqual(S_i0['s1'], 0.05, places=3)
 
+        # This fails ...
+        # s0 = self.Gs.compute_posterior([], {'S': 's0'}, [], {})
+
+
     def test_ML_estimation(self):
         """Test ML estimation using a simple dataset."""
 
