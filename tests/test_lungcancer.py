@@ -9,7 +9,7 @@ import random
 import thomas.core
 from thomas.core.bayesiannetwork import BayesianNetwork
 from thomas.core import examples
-from thomas.core.reader import oobn
+from thomas.core.reader import oobn, net
 
 log = logging.getLogger(__name__)
 
@@ -17,8 +17,7 @@ log = logging.getLogger(__name__)
 class TestLungCancerNetwork(unittest.TestCase):
 
     def setUp(self):
-        pkg_path = os.path.dirname(thomas.core.__file__)
-        fullpath = os.path.join(pkg_path, 'data', 'lungcancer.json')
+        fullpath = thomas.core.get_pkg_data('lungcancer.json')
 
         self.lungcancer = BayesianNetwork.open(fullpath)
         self.maxDiff = None
@@ -26,9 +25,7 @@ class TestLungCancerNetwork(unittest.TestCase):
 
     def get_OOBN_path(self):
         """Return the path to the package's lungcancer.oobn"""
-        pkg_path = os.path.dirname(thomas.core.__file__)
-        fullpath = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
-        return fullpath
+        return thomas.core.get_pkg_data('lungcancer.oobn')
 
     @unittest.skip
     def test_elimination_order_importance(self):
@@ -53,6 +50,22 @@ class TestLungCancerNetwork(unittest.TestCase):
 
 
         self.lungcancer.elimination_order = None
+
+    def test_net_reader(self):
+        filename = thomas.core.get_pkg_data('lungcancer.net')
+        bn_net = net.read(filename)
+
+        filename = thomas.core.get_pkg_data('lungcancer.oobn')
+        bn_oobn = oobn.read(filename)
+
+        self.assertTrue(isinstance(bn_net, BayesianNetwork))
+        self.assertTrue(isinstance(bn_oobn, BayesianNetwork))
+
+        P1 = bn_net.compute_marginals(['T'])
+        P2 = bn_oobn.compute_marginals(['T'])
+
+        self.assertAlmostEqual(P1['T']['1A'], P2['T']['1A'], places=self.places)
+
 
     def test_node_T(self):
         # T = self.lungcancer.P('T')

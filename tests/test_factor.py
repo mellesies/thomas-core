@@ -41,6 +41,10 @@ class TestFactor(unittest.TestCase):
         """Test factor.mul()."""
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
 
+        # int * int
+        nine = mul(3, 3)
+        self.assertEqual(nine, 9)
+
         # int
         fA2 = mul(fA, 2)
         self.assertTrue(isinstance(fA2, Factor))
@@ -67,6 +71,10 @@ class TestFactor(unittest.TestCase):
         fAB = mul(fA.as_series(), fB_A)
         self.assertTrue(isinstance(fAB, Factor))
         self.assertEqual(fAB.scope, ['A', 'B'])
+
+        # Factors with single entries
+        fA_sq = fA.keep_values(A='a1') * fA.keep_values(A='a1')
+        self.assertEqual(fA_sq['a1'], 0.36)
 
     def test_getitem(self):
         """Test casting to Factor when accessing Factor by index."""

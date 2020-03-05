@@ -187,9 +187,6 @@ class Factor(object):
         names = [n for n in self._data.index.names if n is not None]
         names = ','.join(names)
 
-        if not names:
-            names = '?'
-
         return f'factor({names})'
 
     @property
@@ -294,7 +291,7 @@ class Factor(object):
             # suddenly becomes important (i.e. s1 * s2 != s2 * s1) and the index
             # of the first Series is reused. The code below is to make sure
             # that all levels of the index are copied to the end result.
-            multiplied = me._data.mul(other._data, *args, **kwargs)
+            multiplied = me._data.mul(other._data)
             i1, i2 = multiplied.index, other._data.index
             names = [n for n in i2.names if n not in i1.names]
 
