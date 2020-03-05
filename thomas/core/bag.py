@@ -18,6 +18,9 @@ from .cpt import CPT
 
 from . import error
 
+import logging
+log = logging.getLogger('thomas')
+
 # ------------------------------------------------------------------------------
 # Bag
 # ------------------------------------------------------------------------------
@@ -35,6 +38,10 @@ class Bag(ProbabilisticModel):
     def __repr__(self):
         """x.__repr__() <==> repr(x)"""
         return f"<Bag: '{self.name}'>"
+
+    def __len__(self):
+        """len(f) == f.__len__()"""
+        return len(self._factors)
 
     def _scope(self, factors):
         """Return the scope of a set of factors.
@@ -60,13 +67,10 @@ class Bag(ProbabilisticModel):
 
         The result will only contain variables *not* in Q.
         """
-        # filtered = [f for f in factors if not f.overlaps_with(Q)]
-        # filtered.sort(key=lambda x: x.width)
-
         scope = self._scope(factors)
         return [v for v in scope if v not in Q]
 
-    def eliminate(self, Q, e=None, debug=False):
+    def eliminate(self, Q, e=None):
         """Perform variable elimination."""
         if e is None: e = {}
 
@@ -84,43 +88,18 @@ class Bag(ProbabilisticModel):
         # remaining variables from the full distribution.
         ordering = self.find_elimination_ordering(Q, factors)
 
-        if debug:
-            print('-' * 80)
-            print(f'Q: {Q}')
-            print(f'ordering: {ordering}')
-            print('all factors:', [f.display_name for f in factors])
-
         # Iterate over the variables in the ordering.
         for X in ordering:
             # Find factors that have the current variable 'X' in scope
             related_factors = [f for f in factors if X in f.scope]
-
-            if debug:
-                print('-' * 80)
-                print('LOOP')
-                print(f'X: {X}')
-                print('factors:')
-                for f in factors:
-                    print('-' * 10)
-                    print(f)
-                print('-' * 40)
-                print('related_factors:')
-                for f in related_factors:
-                    print('-' * 10)
-                    print(f)
 
             # Multiply all related factors with each other and sum out 'X'
             try:
                 new_factor = reduce(mul, related_factors)
 
             except Exception as e:
-                print()
-                print('Could not reduce list of factors!?')
-
-                if (debug):
-                    return related_factors
-
-                # If we're not debugging, re-raise the Exception.
+                log.error('Could not reduce list of factors!?')
+                log.exception(e)
                 raise e
 
             new_factor = new_factor.sum_out(X)
@@ -129,28 +108,17 @@ class Bag(ProbabilisticModel):
             factors = [f for f in factors if f not in related_factors]
             factors.append(new_factor)
 
-        if debug:
-            print('-' * 80)
-            print('FINAL')
-            print('factors after main loop:')
-            for f in factors:
-                print(f'  - {f.scope}')
-
-            print('-' * 80)
-
         result = reduce(mul, factors)
-
-        if debug:
-            print('result.scope:', result.scope)
-            print('-' * 80)
 
         try:
             result = result.reorder_scope(Q)
-        except:
-            print('exception while reordering scope')
-            print('Q:', Q)
-            print('result.scope:', result.scope)
-            print('result:', result)
+
+        except Exception as e:
+            log.error('exception while reordering scope')
+            log.exception(e)
+            log.error('Q:', Q)
+            log.error('result.scope:', result.scope)
+            log.error('result:', result)
             raise
 
         result.sort_index()
@@ -190,11 +158,12 @@ class Bag(ProbabilisticModel):
         if evidence_vars:
             try:
                 result = result / result.sum_out(query_vars)
-            except:
-                print('-' * 80)
-                print(f'trying to sum out {query_vars}')
-                print(result)
-                print('-' * 80)
+            except Exception as e:
+                log.error('-' * 80)
+                log.error(f'trying to sum out {query_vars}')
+                log.error(result)
+                log.error('-' * 80)
+                log.exception(e)
                 raise
 
         # If query values were specified we can extract them from the factor.

@@ -13,7 +13,7 @@ from functools import reduce
 import json
 
 import logging
-log = logging.getLogger('pybn')
+log = logging.getLogger('thomas')
 
 import thomas.core
 import thomas.core.base
@@ -21,11 +21,8 @@ import thomas.core.base
 # ------------------------------------------------------------------------------
 # Helper functions.
 # ------------------------------------------------------------------------------
+"""
 def mul(x1, x2, debug=False):
-    """Multiply two Factors with each other.
-
-    Helper function for functools.reduce().
-    """
     if debug:
         try:
             print('-' * 80)
@@ -74,6 +71,27 @@ def mul(x1, x2, debug=False):
 
     if isinstance(result, Factor):
         result = result.reorder_scope()
+    return result
+"""
+
+
+def mul(x1, x2):
+    """Multiply two Factors with each other.
+
+    Helper function for functools.reduce().
+    """
+    if isinstance(x1, Factor):
+        result = x1.mul(x2)
+
+    elif isinstance(x2, Factor):
+        result = x2.mul(x1)
+
+    else:
+        result = x1 * x2
+
+    if isinstance(result, Factor):
+        result = result.reorder_scope()
+
     return result
 
 

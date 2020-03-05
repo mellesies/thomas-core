@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 import logging
-log = logging.getLogger('pybn')
+log = logging.getLogger('thomas')
 
 def find_last_modified_script():
     directory = os.path.dirname(__file__)

@@ -27,8 +27,7 @@ from .junctiontree import JunctionTree, TreeNode
 from . import error
 
 import logging
-log = logging.getLogger('pybn')
-
+log = logging.getLogger('thomas')
 
 
 def get_fill_in_edges(edges, order, fill_in=None):

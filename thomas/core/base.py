@@ -98,3 +98,4 @@ class ProbabilisticModel(object):
             return d.idxmax(), d.max()
 
         return d.idxmax()
+
