@@ -17,6 +17,7 @@ log = logging.getLogger('thomas')
 
 import thomas.core
 import thomas.core.base
+from thomas.core import error
 
 # ------------------------------------------------------------------------------
 # Helper functions.
@@ -409,7 +410,7 @@ class Factor(object):
         scope = set(self.scope)
 
         if not variable_set.issubset(scope):
-            raise e.NotInScopeError(variable_set, scope)
+            raise error.NotInScopeError(variable_set, scope)
 
         if len(variable_set) == self.width:
             return self.sum()
@@ -479,7 +480,6 @@ class Factor(object):
         Kwargs:
             dict of states, indexed by RV. E.g. {'G': 'g1'}
         """
-
         if self.width == 1:
             values = list(kwargs.values())
             return self[values[0]]
@@ -511,7 +511,7 @@ class Factor(object):
 
             if value not in data.index.get_level_values(l):
                 value = value.replace(f'{l}.', '')
-                raise e.InvalidStateError(l, value, self)
+                raise error.InvalidStateError(l, value, self)
 
             idx = data.index.get_level_values(l) != value
             data[idx] = np.nan
@@ -547,11 +547,10 @@ class Factor(object):
             'data': data.to_list(),
         }
 
-    def zipped(self):
-        index = list(self.index)
-        data = self._data
-
-        return dict(zip(index, data.to_list()))
+    # def zipped(self):
+    #     index = list(self.index)
+    #     data = self._data
+    #     return dict(zip(index, data.to_list()))
 
     @classmethod
     def from_dict(cls, d):

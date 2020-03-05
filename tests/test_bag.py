@@ -10,6 +10,12 @@ log = logging.getLogger(__name__)
 
 class TestBag(unittest.TestCase):
 
+    def test_repr(self):
+        """Test repr(Bag)."""
+        factors = examples.get_sprinkler_factors()
+        bag = Bag('Sprinkler', factors)
+        self.assertEqual(repr(bag), f"<Bag: '{bag.name}'>")
+
     def test_scope(self):
         """Test a Bag's scope."""
         # Get the Factors for the Sprinkler network

@@ -37,15 +37,6 @@ __version__ = find_last_modified_script()[1]
 del version
 
 
-def enable_logging_to_console(enable=True):
-    format_ = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
-    if enable:
-        logging.basicConfig(format=format_, level=logging.DEBUG)
-        log.setLevel(logging.DEBUG)
-    else:
-        log.setLevel(logging.CRITICAL)
-
 def get_pkg_data(filename, path='data'):
     """Return data contained in this pacakge."""
     directory = os.path.dirname(__file__)

@@ -70,19 +70,14 @@ class Bag(ProbabilisticModel):
         scope = self._scope(factors)
         return [v for v in scope if v not in Q]
 
-    def eliminate(self, Q, e=None):
+    def eliminate(self, Q, evidence=None):
         """Perform variable elimination."""
-        if e is None: e = {}
+        if evidence is None:
+            evidence = {}
 
-        # Initialize the list of factors
+        # Initialize the list of factors and apply the evidence
         factors = list(self._factors)
-
-        # Apply the evidence
-        try:
-            factors = [f.keep_values(**e) for f in factors]
-        except error.InvalidStateError as e:
-            # Actually, don't deal with this here ...
-            raise
+        factors = [f.keep_values(**evidence) for f in factors]
 
         # ordering will contain a list of variables *not* in Q, i.e. the
         # remaining variables from the full distribution.
@@ -94,14 +89,7 @@ class Bag(ProbabilisticModel):
             related_factors = [f for f in factors if X in f.scope]
 
             # Multiply all related factors with each other and sum out 'X'
-            try:
-                new_factor = reduce(mul, related_factors)
-
-            except Exception as e:
-                log.error('Could not reduce list of factors!?')
-                log.exception(e)
-                raise e
-
+            new_factor = reduce(mul, related_factors)
             new_factor = new_factor.sum_out(X)
 
             # Replace the factors we have eliminated with the new factor.
@@ -109,20 +97,8 @@ class Bag(ProbabilisticModel):
             factors.append(new_factor)
 
         result = reduce(mul, factors)
-
-        try:
-            result = result.reorder_scope(Q)
-
-        except Exception as e:
-            log.error('exception while reordering scope')
-            log.exception(e)
-            log.error('Q:', Q)
-            log.error('result.scope:', result.scope)
-            log.error('result:', result)
-            raise
-
+        result = result.reorder_scope(Q)
         result.sort_index()
-
         return result
 
     def compute_posterior(self, qd, qv, ed, ev):
@@ -156,15 +132,7 @@ class Bag(ProbabilisticModel):
         # At this point, result's scope is over all query and evidence variables
         # If we're computing an entire conditional distribution ...
         if evidence_vars:
-            try:
-                result = result / result.sum_out(query_vars)
-            except Exception as e:
-                log.error('-' * 80)
-                log.error(f'trying to sum out {query_vars}')
-                log.error(result)
-                log.error('-' * 80)
-                log.exception(e)
-                raise
+            result = result / result.sum_out(query_vars)
 
         # If query values were specified we can extract them from the factor.
         if qv:
