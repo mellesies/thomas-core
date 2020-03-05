@@ -10,4 +10,9 @@ log = logging.getLogger(__name__)
 
 class TestProbabilisticModel(unittest.TestCase):
 
-    pass
+    def test_compute_posterior(self):
+
+        model = ProbabilisticModel()
+
+        with self.assertRaises(NotImplementedError) as context:
+            model.compute_posterior([], {}, [], {})

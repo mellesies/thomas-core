@@ -119,6 +119,7 @@ class Factor(object):
             and isinstance(data.index, (pd.Index, pd.MultiIndex))):
                 data = data.copy()
                 idx = data.index
+                variable_states = thomas.core.base.index_to_dict(idx)
 
         elif isinstance(data, Factor):
             variable_states = data._variable_states
@@ -133,7 +134,7 @@ class Factor(object):
         if np.issubdtype(type(data), np.integer):
             data = float(data)
 
-        self._data = pd.Series(data, index=idx)
+        self._data = pd.Series(data, index=idx).dropna()
         self._variable_states = variable_states
 
     def __repr__(self):
@@ -210,8 +211,6 @@ class Factor(object):
         """Return a dict of variable states."""
         if self._variable_states is not None:
             return self._variable_states
-
-        return thomas.core.base.index_to_dict(self._data.index)
 
     @classmethod
     def _index_from_variable_states(cls, variable_states):

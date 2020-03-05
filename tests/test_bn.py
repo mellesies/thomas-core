@@ -226,6 +226,18 @@ class TestBayesianNetwork(unittest.TestCase):
         # This fails ...
         # s0 = self.Gs.compute_posterior([], {'S': 's0'}, [], {})
 
+    def test_joint_with_jt(self):
+        """Testing computing a joint using a JT."""
+        IS1 = self.Gs.compute_joint_with_jt(['I', 'S'])
+        IS2 = self.Gs.compute_posterior(
+            ['I', 'S'], {}, [], {},
+            use_VE=True
+        )
+
+        d1 = IS1._data.round(3)
+        d2 = IS2._data.round(3)
+        self.assertTrue(d1.equals(d2))
+
 
     def test_ML_estimation(self):
         """Test ML estimation using a simple dataset."""
