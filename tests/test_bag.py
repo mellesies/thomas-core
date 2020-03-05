@@ -79,6 +79,14 @@ class TestBag(unittest.TestCase):
         self.assertAlmostEqual(G_I['i0', 'g2'], 0.34, places=2)
         self.assertAlmostEqual(G_I['i0', 'g3'], 0.46, places=2)
 
+        s0_i0 = bag.compute_posterior([], {'S': 's0'}, [], {'I':'i0'})
+        s1_i0 = bag.compute_posterior([], {'S': 's1'}, [], {'I':'i0'})
+        self.assertAlmostEqual(s0_i0, 0.95, places=2)
+        self.assertAlmostEqual(s1_i0, 0.05, places=2)
+
+        s0G_i0 = bag.compute_posterior(['G'], {'S': 's0'}, [], {'I':'i0'})
+        self.assertEqual(len(s0G_i0), 3)
+
     def test_MAP(self):
         """Test the BayesianNetwork.MAP() function."""
         factors = examples.get_student_CPTs()
@@ -119,3 +127,14 @@ class TestBag(unittest.TestCase):
 
         jpt = bag.eliminate(list(bag.scope)).normalize()
         self.assertAlmostEqual(jpt.sum(), 1, places=5)
+
+    def test_as_dict(self):
+        """Test serialization."""
+        factors = examples.get_sprinkler_factors()
+        bag = Bag('Sprinkler', factors)
+
+        bd = bag.as_dict()
+
+        self.assertEqual(bd['type'], 'Bag')
+        self.assertEqual(bd['name'], bag.name)
+        self.assertEqual(len(bd['factors']), len(bag))
