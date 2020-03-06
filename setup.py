@@ -40,6 +40,7 @@ setup(
             "data/*.lark",
             "data/*.json",
             "data/*.oobn",
+            "data/*.net",
         ],
     },
     python_requires='>= 3.6',
