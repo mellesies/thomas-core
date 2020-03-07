@@ -5,6 +5,7 @@ from networkx.algorithms.shortest_paths.generic import shortest_path
 
 from functools import reduce
 
+from . import error
 from .factor import mul, Factor
 # ------------------------------------------------------------------------------
 # JunctionTree
@@ -94,12 +95,6 @@ class JunctionTree(object):
         Returns:
             list of clusters (i.e. sets of RVs)
         """
-        if edges is None:
-            edges = bn.moralize_graph()
-
-        if order is None:
-            order = bn.get_node_elimination_order()
-
         # Create a copy to make sure we're not modifying the method argument.
         order = list(order)
 
@@ -156,30 +151,30 @@ class JunctionTree(object):
                 # We'll compute union over the remaining clusters and determine
                 # the intersection with the current cluster.
                 intersection = C_i.intersection(set.union(*remaining_clusters))
-                found = False
+                # found = False
 
                 # According to the running intersection property, there should
                 # be a node/cluster that contains the above intersection.
                 for node_j in remaining_nodes:
-                    C_j = node_j.cluster
+                   C_j = node_j.cluster
 
-                    if intersection.issubset(C_j):
-                        self.add_edge(node_i, node_j)
-                        found = True
-                        break
+                   if intersection.issubset(C_j):
+                       self.add_edge(node_i, node_j)
+                       # found = True
+                       break
 
-                if not found:
-                    print('*** WARNING ***')
-                    print('Could not add node_i: ', node_i)
-                    print('C_i:', C_i)
-                    print('remaining_clusters:')
-                    for r in remaining_clusters:
-                        print('  ', r)
-                    print()
-
-                    # Stop it right there!
-                    msg = 'Could not find cluster/node containing intersection.'
-                    raise Exception(msg)
+                #if not found:
+                #    print('*** WARNING ***')
+                #    print('Could not add node_i: ', node_i)
+                #    print('C_i:', C_i)
+                #    print('remaining_clusters:')
+                #    for r in remaining_clusters:
+                #        print('  ', r)
+                #    print()
+                #
+                #    # Stop it right there!
+                #    msg = 'Could not find cluster/node containing intersection.'
+                #    raise Exception(msg)
 
     def _assign_factors(self, bn):
         """Assign the BNs factors (nodes) to one of the clusters."""
@@ -205,23 +200,15 @@ class JunctionTree(object):
         # Iterate over the JT nodes/clusters to make sure each cluster has
         # the correct factors assigned.
         for jt_node in self.nodes.values():
-            try:
-                for missing in (jt_node.cluster - jt_node.vars):
-                    bn_node = bn.nodes[missing]
-                    states = {bn_node.RV: bn_node.states}
-                    trivial = Factor(1, variable_states=states)
-                    jt_node.add_factor(trivial)
-            except:
-                print('*** WARNING ***')
-                print('jt_node.cluster:', jt_node.cluster)
-                print('jt_node.vars:', jt_node.vars)
+            for missing in (jt_node.cluster - jt_node.vars):
+                bn_node = bn.nodes[missing]
+                states = {bn_node.RV: bn_node.states}
+                trivial = Factor(1, variable_states=states)
+                jt_node.add_factor(trivial)
 
     def ensure_cluster(self, cluster):
         """Ensure cluster is contained in one of the nodes."""
-        if isinstance(cluster, list):
-            Q = set(cluster)
-        else:
-            Q = cluster
+        Q = set(cluster) if isinstance(cluster, list) else cluster
 
         if self.get_node_for_set(Q):
             return
@@ -281,9 +268,6 @@ class JunctionTree(object):
                 return node
 
         return None
-
-    def get_marginal(self, RV):
-        return self.get_node_for_RV(RV).project(RV)
 
     def get_marginals(self, RVs=None):
         """Return the probabilities for a set off/all RVs given set evidence."""
@@ -366,7 +350,7 @@ class JunctionTree(object):
 
             if state not in indicator.index.get_level_values(RV):
                 state = state.replace(f'{RV}.', '')
-                raise e.InvalidStateError(RV, state, self)
+                raise error.InvalidStateError(RV, state, indicator)
 
             # FIXME: it's not pretty to access Factor._data like this!
             data = indicator._data
