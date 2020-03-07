@@ -535,10 +535,10 @@ class Factor(object):
             'data': data.to_list(),
         }
 
-    # def zipped(self):
-    #     index = list(self.index)
-    #     data = self._data
-    #     return dict(zip(index, data.to_list()))
+    def zipped(self):
+        """Return a dict with data, indexed by tuples."""
+        index = list(self.index)
+        return dict(zip(index, self._data.to_list()))
 
     @classmethod
     def from_dict(cls, d):
