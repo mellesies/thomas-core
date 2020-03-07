@@ -5,6 +5,7 @@ import doctest
 import logging
 
 import numpy as np
+import pandas as pd
 
 from thomas.core.factor import Factor, mul
 from thomas.core import examples
@@ -40,6 +41,22 @@ class TestFactor(unittest.TestCase):
 
         with self.assertRaises(Exception):
             fA.add('noooooo')
+
+    def test_dot(self):
+        """Test factor.dot()."""
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+
+        fB = fA.dot(fB_A)
+        self.assertIsInstance(fB, Factor)
+        self.assertEqual(fB.sum(), 1)
+
+    def test_extract_values(self):
+        """Test factor.extract_values()."""
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+
+        self.assertIsInstance(fA.extract_values(A='a0'), float)
+        self.assertIsInstance(fB_A.extract_values(A='a0', B='b1'), float)
+        self.assertIsInstance(fB_A.extract_values(A='a0'), Factor)
 
     def test_mul(self):
         """Test factor.mul()."""
@@ -166,6 +183,7 @@ class TestFactor(unittest.TestCase):
 
         # Make sure we did this right :-)
         self.assertAlmostEquals(total, 1.00, places=2)
+        self.assertTrue(fA.sum_out([]).equals(fA))
 
     def test_project(self):
         """Test the `project` function."""
@@ -230,3 +248,12 @@ class TestFactor(unittest.TestCase):
 
         with self.assertRaises(error.InvalidStateError) as context:
             fB_A.keep_values(A='a2')
+
+    def test_unstack(self):
+        """Test factor.unstack()."""
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+
+        unstacked = fB_A.unstack()
+
+        self.assertIsInstance(unstacked, pd.DataFrame)
+        self.assertEqual(unstacked.shape, (2, 2))

@@ -406,20 +406,8 @@ class Factor(object):
 
         # Unstack the requested variables into columns and sum over them.
         unstacked = self._data.unstack(tuple(variable_set))
-
-        try:
-            summed = unstacked.sum(axis=1)
-        except Exception as e:
-            log.error(f'Could not sum out {variable_set}')
-            log.error(unstacked)
-            log.exception(e)
-            raise
-
+        summed = unstacked.sum(axis=1)
         return Factor(summed)
-
-    def stack(self, *args, **kwargs):
-        """Proxy for pd.Series.stack()."""
-        return self._data.stack(*args, **kwargs)
 
     def unstack(self, *args, **kwargs):
         """Proxy for pd.Series.unstack()."""
@@ -428,9 +416,9 @@ class Factor(object):
     def dot(self, other):
         """Return the dot (matrix) product."""
         if isinstance(other, Factor):
-            return Factor(self._data.dot(other._data))
+            # return Factor(self._data.dot(other._data))
+            other = other._data.unstack()
 
-        # Hail mary ... ;)
         return Factor(self._data.dot(other))
 
     def outer(self, other):
@@ -469,10 +457,6 @@ class Factor(object):
         Kwargs:
             dict of states, indexed by RV. E.g. {'G': 'g1'}
         """
-        if self.width == 1:
-            values = list(kwargs.values())
-            return self[values[0]]
-
         # Need to do some trickery to get the correct levels from the
         # MultiIndex.
         indices = []
@@ -483,7 +467,22 @@ class Factor(object):
 
         zipped = list(zip(*indices))
         idx = [all(x) for x in zipped]
-        return Factor(self._data[idx])
+        data = self._data[idx]
+
+        levels = list(kwargs.keys())
+        last_level = levels[-1]
+        last_value = kwargs[last_level]
+
+        levels = levels[:-1]
+        data.index = data.index.droplevel(levels)
+
+        # Testing for pd.Index doesn't work since isinstance() caters for
+        # inheritance
+        if isinstance(data.index, pd.MultiIndex):
+            return Factor(data)
+
+        # This should be a scalar ...
+        return data[last_value]
 
     def keep_values(self, **kwargs):
         """Return a reduced factor."""
