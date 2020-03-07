@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
+import os
 import unittest
 import doctest
 import logging
 import itertools
+import json
+
+from tempfile import gettempdir
 
 import pandas as pd
 
 import thomas.core
+from thomas.core.cpt import CPT
 from thomas.core.bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
 from thomas.core import examples
 
@@ -26,9 +31,60 @@ class TestBayesianNetwork(unittest.TestCase):
 
         for rv in random_vars:
             self.assertTrue(rv in self.Gs.nodes)
-            self.assertTrue(isinstance(self.Gs.nodes[rv], DiscreteNetworkNode))
+            self.assertIsInstance(self.Gs.nodes[rv], DiscreteNetworkNode)
 
-    def test_priors(self):
+    def test_repr(self):
+        """Test repr(bn)."""
+        n = self.Gs.name
+        self.assertTrue(repr(self.Gs).startswith(f"<BayesianNetwork name='{n}'>"))
+
+    def test_states(self):
+        """Test property bn.states."""
+
+        # The index for states should be the same keys as the one for the nodes.
+        self.assertEqual(self.Gs.states.keys(), self.Gs.nodes.keys())
+
+    def test_node_repr(self):
+        """Test repr(node)."""
+        node = self.Gs['G']
+        self.assertTrue(repr(node).startswith('DiscreteNetworkNode'))
+
+    def test_node_parents(self):
+        """Test property Node.parents."""
+        node = self.Gs['G']
+        self.assertEqual(len(node.parents), 2)
+        parent_RVs = set([p.RV for p in node.parents])
+        self.assertEqual(parent_RVs, {'I', 'D'})
+
+    def test_node_cpt(self):
+        """Test getting/setting node's CPT."""
+        node = self.Gs['I']
+        cpts = examples.get_student_CPTs()
+
+        with self.assertRaises(Exception):
+            node.cpt = 1
+
+        with self.assertRaises(Exception):
+            node.cpt = CPT(cpts['G']._data, conditioned_variables=['I','D'])
+
+        with self.assertRaises(Exception):
+            node.cpt = CPT(cpts['G'])
+
+    def test_node_reset(self):
+        """Test node.reset()."""
+        Gs = examples.get_student_network()
+        Gs['I'].reset()
+
+        self.assertAlmostEqual(Gs['I'].cpt['i0'], 0.5)
+
+    def test_node_validate(self):
+        """Test node.validate()."""
+        try:
+            self.Gs['I'].validate()
+        except Exception:
+            self.fail("validate() raised Exception unexpectedly!")
+
+    def test_get_marginals_no_evidence(self):
         """Test computation of a BN's prior probabilities for the nodes."""
         self.Gs.reset_evidence()
         priors = self.Gs.get_marginals()
@@ -59,7 +115,7 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEqual(L['l1'], 0.502, places=3)
         self.assertAlmostEqual(L.sum(), 1)
 
-    def test_compute_marginals_student(self):
+    def test_get_marginals_with_evidence(self):
         """Test computation of a BN's probabilities for the nodes given
         evidence.
         """
@@ -162,24 +218,7 @@ class TestBayesianNetwork(unittest.TestCase):
         add_d0()
         reset_set_g1()
 
-    @unittest.skip
-    def test_elimination_order_importance(self):
-        self.Gs.reset_evidence()
-
-        nodes = list(self.Gs.nodes.keys())
-
-        for order in itertools.permutations(nodes):
-            self.Gs._jt = None
-            self.Gs.elimination_order = order
-
-            priors = self.Gs.get_marginals()
-            L = priors['L']
-            self.assertAlmostEqual(L['l0'], 0.498, places=3)
-            self.assertAlmostEqual(L['l1'], 0.502, places=3)
-
-        self.Gs.elimination_order = None
-
-    def test_compute_posterior_student(self):
+    def test_compute_marginals(self):
         """Test computation of a BN's probabilities for the nodes given
         evidence.
         """
@@ -223,6 +262,23 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEqual(S_i0['s0'], 0.95, places=3)
         self.assertAlmostEqual(S_i0['s1'], 0.05, places=3)
 
+    def test_compute_posterior(self):
+        """Test bn.compute_posterior()."""
+        # P(D,S), can be computed with the default JT
+        ID = self.Gs.compute_posterior(['I', 'D'], {}, [], {})
+        self.assertAlmostEqual(ID.sum(), 1, places=3)
+
+
+        I_D = self.Gs.compute_posterior(['I'], {}, ['D'], {})
+        self.assertAlmostEqual(I_D.sum(), 2, places=3)
+
+        # I and D are independent
+        self.assertTrue(I_D['d0'].equals(I_D['d1']))
+
+        # P(D,S), cannot be computed with the default JT
+        DS = self.Gs.compute_posterior(['D', 'S'], {}, [], {})
+        self.assertAlmostEqual(DS.sum(), 1, places=3)
+
         # This fails ...
         # s0 = self.Gs.compute_posterior([], {'S': 's0'}, [], {})
 
@@ -237,7 +293,6 @@ class TestBayesianNetwork(unittest.TestCase):
         d1 = IS1._data.round(3)
         d2 = IS2._data.round(3)
         self.assertTrue(d1.equals(d2))
-
 
     def test_ML_estimation(self):
         """Test ML estimation using a simple dataset."""
@@ -285,5 +340,31 @@ class TestBayesianNetwork(unittest.TestCase):
         unserialized = BayesianNetwork.from_dict(serialized)
 
         self.assertDictEqual(serialized, unserialized.as_dict())
+
+        tmpfile = os.path.join(gettempdir(), 'network.json')
+        self.Gs.save(tmpfile)
+
+        opened = BayesianNetwork.open(tmpfile)
+        self.assertDictEqual(serialized, opened.as_dict())
+
+        # Clean up
+        os.remove(tmpfile)
+
+    @unittest.skip
+    def test_elimination_order_importance(self):
+        self.Gs.reset_evidence()
+
+        nodes = list(self.Gs.nodes.keys())
+
+        for order in itertools.permutations(nodes):
+            self.Gs._jt = None
+            self.Gs.elimination_order = order
+
+            priors = self.Gs.get_marginals()
+            L = priors['L']
+            self.assertAlmostEqual(L['l0'], 0.498, places=3)
+            self.assertAlmostEqual(L['l1'], 0.502, places=3)
+
+        self.Gs.elimination_order = None
 
 

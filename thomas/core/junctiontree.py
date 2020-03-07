@@ -5,7 +5,6 @@ from networkx.algorithms.shortest_paths.generic import shortest_path
 
 from functools import reduce
 
-from .util import sep
 from .factor import mul, Factor
 # ------------------------------------------------------------------------------
 # JunctionTree

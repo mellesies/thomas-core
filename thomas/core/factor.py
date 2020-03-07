@@ -233,9 +233,9 @@ class Factor(object):
 
         return idx
 
-    def equals(self, other):
+    def equals(self, other, precision=3):
         """Test whether two objects contain the same elements."""
-        return self._data.equals(other._data)
+        return self._data.round(precision).equals(other._data.round(precision))
 
     def max(self):
         """Proxy for pandas.Series.max()"""
@@ -311,17 +311,7 @@ class Factor(object):
             concatted = pd.concat([multiplied], keys=keys, names=names)
             return Factor(concatted)
 
-        try:
-            result = me._data.mul(other._data)
-
-        except Exception as e:
-            log.error('Could not multiply factors!?')
-            log.error('exception: ', e)
-            log.error('me:', me._data.index.names)
-            log.error('other:', other._data.index.names)
-            log.exception(e)
-            raise e
-
+        result = me._data.mul(other._data)
         return Factor(result)
 
     def div(self, other, *args, **kwargs):

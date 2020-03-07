@@ -15,10 +15,6 @@ class JPT(Factor, ProbabilisticModel):
     def display_name(self):
         names = [n for n in self._data.index.names if n is not None]
         names = ','.join(names)
-
-        if not names:
-            names = '?'
-
         return f'JPT({names})'
 
     @classmethod
@@ -81,14 +77,7 @@ class JPT(Factor, ProbabilisticModel):
         result = self.project(query_vars + evidence_vars)
 
         if evidence_vars:
-            try:
-                result = result / result.sum_out(query_vars)
-            except:
-                print('-' * 80)
-                print(f'trying to sum out {query_vars}')
-                print(result)
-                print('-' * 80)
-                raise
+            result = result / result.sum_out(query_vars)
 
         # If query values were specified we can extract them from the factor.
         if qv:

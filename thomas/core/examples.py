@@ -5,11 +5,12 @@ import os
 import numpy as np
 import pandas as pd
 
+import thomas.core
 from .factor import Factor
 from .cpt import CPT
 from .jpt import JPT
 
-from .bayesiannetwork import BayesianNetwork
+from .bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
 
 def subset(full_dict, keys):
     """Return a subset of a dict."""
@@ -17,9 +18,6 @@ def subset(full_dict, keys):
 
 def get_student_CPTs():
     """Return the CPTs for the Student Bayesian Network."""
-    pass
-
-    # Set the conditional probabilities
     P = dict()
     states = {
         'I': ['i0', 'i1'],
@@ -147,6 +145,11 @@ def get_sprinkler_network():
     return BayesianNetwork.from_CPTs('Sprinkler', CPTs)
 
 def get_example7_factors():
+    """Return the factors for a very simple BN.
+
+    Data copied from "Modeling and Reasoning with Bayesian Networks"
+    (page 154) by Adnan Darwiche (2009).
+    """
     states = {
         'A': ['a1', 'a0'],
         'B': ['b1', 'b0'],
@@ -174,15 +177,25 @@ def get_example7_factors():
     return fA, fB_A, fC_B
 
 def get_example7_network():
-    fA, fB_A, fC_B = get_example7_factors()
-    nA = Node('A', fA)
-    nB = Node('B', fB_A)
-    nC = Node('C', fC_B)
+    """Return a very simple BN.
 
-    bn = BayesianNetwork('class', [nA, nB, nC])
+    Data copied from "Modeling and Reasoning with Bayesian Networks"
+    (page 154) by Adnan Darwiche (2009).
+    """
+    fA, fB_A, fC_B = get_example7_factors()
+    nA = DiscreteNetworkNode('A', fA)
+    nB = DiscreteNetworkNode('B', fB_A)
+    nC = DiscreteNetworkNode('C', fC_B)
+
+    bn = BayesianNetwork(
+        'class',
+        [nA, nB, nC],
+        [('A', 'B'), ('B', 'C')]
+    )
+
+    return bn
 
 def get_lungcancer_network():
-    pkg_path = os.path.dirname(pybn.__file__)
-    filename = os.path.join(pkg_path, 'data', 'lungcancer.oobn')
-
-    return pybn.reader.oobn.read(filename)
+    """Load 'lungcancer.oobn'."""
+    filename = thomas.core.get_pkg_data('lungcancer.oobn')
+    return thomas.core.reader.oobn.read(filename)

@@ -211,6 +211,7 @@ def _create_structure(tree):
                 parent_states.values(),
                 names=parent_states.keys()
             )
+
             columns = pd.Index(node_states, name=name)
             data = data.reshape(-1, len(columns))
             df = pd.DataFrame(data, index=index, columns=columns)
@@ -260,8 +261,8 @@ def _create_bn(structure):
 
         cpt = node_properties['CPT']
 
-        if None in cpt.index.names:
-            cpt.index = cpt.index.droplevel()
+        # if None in cpt.index.names:
+        #     cpt.index = cpt.index.droplevel()
 
         constructor = getattr(bayesiannetwork, node_properties['type'])
 

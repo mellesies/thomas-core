@@ -316,8 +316,8 @@ class BayesianNetwork(ProbabilisticModel):
         required_RVs = set(qd + list(qv.keys()) + ed)
         node = self.junction_tree.get_node_for_set(required_RVs)
 
-        if node is None:
-            log.warn('Cannot answer this query with the current junction tree.')
+        if node is None and use_VE == False:
+            log.info('Cannot answer this query with the current junction tree.')
             use_VE = True
 
         if use_VE:
@@ -362,9 +362,6 @@ class BayesianNetwork(ProbabilisticModel):
         and the likelihood of all other states to 0.
         """
         self.junction_tree.set_evidence_hard(**{RV: state})
-
-    def get_marginal(self, RV):
-        return self.junction_tree.get_marginal(RV)
 
     def get_marginals(self, RVs=None):
         """Return the probabilities for a set off/all RVs given set evidence."""
@@ -702,12 +699,6 @@ class DiscreteNetworkNode(Node):
             e = "Conditioned variable in CPT should correspond to Node's RV"
             raise Exception(e)
 
-        # elif self.states and self.states != cpt.variable_states[self.RV]:
-        #     e = "States in CPT should match the Node's states.\n"
-        #     e += f" -> Node: {self.states}\n"
-        #     e += f" -> CPT: {cpt.variable_states[self.RV]}\n"
-        #     raise Exception(e)
-
         if not self.states:
             self.states = cpt.variable_states[self.RV]
 
@@ -777,7 +768,7 @@ class DiscreteNetworkNode(Node):
 
     def validate(self):
         """Validate the probability parameters for this Node."""
-        if cpt.conditioning != [p.RV for p in self._parents]:
+        if self.cpt.conditioning != [p.RV for p in self._parents]:
             e  = "Conditioning variables in CPT should correspond to Node's"
             e += " parents. Order is important!"
             raise Exception(e)

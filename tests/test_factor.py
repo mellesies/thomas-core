@@ -8,6 +8,7 @@ import numpy as np
 
 from thomas.core.factor import Factor, mul
 from thomas.core import examples
+from thomas.core import error
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,9 @@ class TestFactor(unittest.TestCase):
         f2 = fA.add(fAB)
 
         self.assertTrue(isinstance(f2, Factor))
+
+        with self.assertRaises(Exception):
+            fA.add('noooooo')
 
     def test_mul(self):
         """Test factor.mul()."""
@@ -124,6 +128,12 @@ class TestFactor(unittest.TestCase):
 
         self.assertAlmostEquals(fAB.sum(), 1, places=8)
 
+    def test_overlaps_with(self):
+        """Test factor.overlaps_with()."""
+        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+        overlap = fD_BC.overlaps_with(['B', 'C'])
+        self.assertTrue(overlap)
+
     def test_summing_out(self):
         """Test summing out variables."""
         # Get the Factors for the Sprinkler network
@@ -168,6 +178,8 @@ class TestFactor(unittest.TestCase):
         self.assertAlmostEquals(fC['c1'], 0.376, places=8)
         self.assertAlmostEquals(fC.sum(), 1, places=8)
 
+        self.assertTrue(fA.project('A').equals(fA))
+
     def test_serialization_simple(self):
         """Test the JSON serialization."""
         [fA, fB_A, fC_A, fD_BC, fE_C] = examples.get_sprinkler_factors()
@@ -209,3 +221,12 @@ class TestFactor(unittest.TestCase):
 
         self.assertTrue(isinstance(fA.values, np.ndarray))
 
+    def test_error(self):
+        factors = examples.get_sprinkler_factors()
+        fB_A = factors[1]
+
+        with self.assertRaises(error.NotInScopeError) as context:
+            fB_A.sum_out('C')
+
+        with self.assertRaises(error.InvalidStateError) as context:
+            fB_A.keep_values(A='a2')

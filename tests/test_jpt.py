@@ -14,6 +14,25 @@ log = logging.getLogger(__name__)
 
 class TestJPT(unittest.TestCase):
 
+    def test_repr(self):
+        """Test repr(jpt)."""
+        jpt = examples.get_sprinkler_jpt()
+        self.assertTrue(repr(jpt).startswith('JPT(A,B,C,D,E)'))
+
+    def test_compute_dist(self):
+        """test jpt.compute_dist()"""
+        jpt = examples.get_sprinkler_jpt()
+
+        A = jpt.compute_dist(['A'])
+        self.assertTrue(isinstance(A, CPT))
+        self.assertAlmostEqual(A['a0'], 0.4)
+        self.assertAlmostEqual(A['a1'], 0.6)
+
+        A_B = jpt.compute_dist(['A'], ['B'])
+        self.assertTrue(isinstance(A_B, CPT))
+        self.assertEqual(A_B.scope, ['B', 'A'])
+        self.assertAlmostEqual(A_B['b1', 'a1'], 0.286, places=3)
+
     def test_sprinkler_jpt(self):
         """Test the JPT for the Sprinkler network."""
         jpt = examples.get_sprinkler_jpt()
@@ -46,3 +65,11 @@ class TestJPT(unittest.TestCase):
         D_BC_computed = D_BC_computed.as_series().round(3)
 
         self.assertTrue(D_BC_computed.equals(D_BC_known))
+
+        a0_B = jpt.compute_posterior([], {'A': 'a0'}, ['B'], {})
+        self.assertEqual(len(a0_B), 2)
+
+        a0 = jpt.compute_posterior([], {'A': 'a0'}, [], {})
+        self.assertAlmostEqual(a0, 0.4, places=5)
+
+

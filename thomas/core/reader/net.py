@@ -157,18 +157,6 @@ class BasicTransformer(lark.Transformer):
                 # Every property is a (key, value) tuple
                 properties.append(i)
 
-            elif i['type'] == 'DiscreteNetworkNode':
-                nodes[i['name']] = i
-
-            elif i['type'] == 'CPT':
-                potentials[i['name']] = i
-
-        if nodes:
-            properties.append(('nodes', nodes))
-
-        if potentials:
-            properties.append(('potentials', potentials))
-
         return dict(properties)
 
     def property(self, items):
@@ -299,9 +287,6 @@ def _create_bn(structure):
         description = ''
 
         cpt = node_properties['CPT']
-
-        if None in cpt.index.names:
-            cpt.index = cpt.index.droplevel()
 
         constructor = getattr(bayesiannetwork, node_properties['class'])
 
