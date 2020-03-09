@@ -276,46 +276,31 @@ class JunctionTree(object):
 
         return {RV: self.get_node_for_RV(RV).project(RV) for RV in RVs}
 
-    def add_node(self, cluster, factors=None, evidence=False):
+    # def add_node(self, cluster, factors=None, evidence=False):
+    def add_node(self, cluster, factors=None):
         """Add a node to the tree."""
-
-        # FIXME: I don't think `evidence` is ever set to True in the
-        #        current implementation.
-        if evidence:
-            node = EvidenceNode(cluster, factors)
-        else:
-            node = TreeNode(cluster, factors)
-
+        node = TreeNode(cluster, factors)
         self.nodes[node.label] = node
         return node
 
     def add_edge(self, node1, node2):
         """Add an edge between two nodes."""
-        if isinstance(node1, str):
-            node1 = self.nodes[node1]
-
-        if isinstance(node2, str):
-            node2 = self.nodes[node2]
+        assert isinstance(node1, TreeNode), "node1 should be a TreeNode!"
+        assert isinstance(node2, TreeNode), "node2 should be a TreeNode!"
 
         self.edges.append(TreeEdge(node1, node2))
-        # Adding an edge requires us to recompute the separators.
 
     def add_indicator(self, factor, node):
         """Add an indicator for a random variable to a node."""
-        if isinstance(node, str):
-            node = self.nodes[node]
+        assert isinstance(node, TreeNode), "node should be a TreeNode!"
 
         RV = list(factor.variable_states.keys()).pop()
         self.indicators[RV] = factor
         node.indicators.append(factor)
 
-    def reset_evidence(self, RVs=None):
+    def reset_evidence(self):
         """Reset evidence for one or more RVs."""
-        if RVs is None:
-            RVs = self.indicators
-
-        elif isinstance(RVs, str):
-            RVs = [RVs]
+        RVs = self.indicators
 
         for RV in RVs:
             indicator = self.indicators[RV]
@@ -366,31 +351,6 @@ class JunctionTree(object):
         """Invalidate the nodes' caches."""
         for n in self.nodes.values():
             n.invalidate_cache()
-
-    def run(self):
-        for n in self.nodes.values():
-            n.pull()
-
-    def compute_posterior(self, query_dist, query_values, evidence_dist,
-        evidence_values, **kwargs):
-        """Compute the probability of the query variables given the evidence.
-
-        The query P(I,G=g1|D,L=l0) would imply:
-            query_dist = ['I']
-            query_values = {'G': 'g1'}
-            evidence_dist = ('D',)
-            evidence_values = {'L': 'l0'}
-
-        :param tuple query_dist: Random variable to query
-        :param dict query_values: Random variable values to query
-        :param tuple evidence_dist: Conditioned on evidence
-        :param dict evidence_values: Conditioned on values
-        :return: pandas.Series (possibly with MultiIndex)
-        """
-        Q = set(query_dist)
-        for n in self.nodes.values():
-            if Q in n.cluster:
-                return n
 
     def as_networkx(self):
         """Return the JunctionTree as a networkx.Graph() instance."""
@@ -450,9 +410,9 @@ class TreeEdge(object):
         """repr(x) <==> x.__repr__()"""
         return f'Edge: ({repr(self._left)} - {repr(self._right)})'
 
-    def __getitem__(self, key):
-        """a[key] <==> a.__getitem__(key) <==> a.get_neighbor(key)"""
-        return self.get_neighbor(key)
+    # def __getitem__(self, key):
+    #     """a[key] <==> a.__getitem__(key) <==> a.get_neighbor(key)"""
+    #     return self.get_neighbor(key)
 
     @property
     def separator(self):
@@ -542,14 +502,7 @@ class TreeNode(object):
 
             # Per documentation for reduce: "If initializer is not given and
             # sequence contains only one item, the first item is returned."
-            try:
-                self._factors_multiplied = reduce(mul, factors)
-            except:
-                print('*** ERROR ***')
-                print('Error while trying to compute the joint distribution')
-                print(f'Node: {self.cluster}')
-                print(f'Factors:', factors)
-                raise
+            self._factors_multiplied = reduce(mul, factors)
 
         return self._factors_multiplied
 
@@ -581,17 +534,17 @@ class TreeNode(object):
     def get_downstream_edges(self, upstream=None):
         return [e for e in self._edges if e is not upstream]
 
-    def get_all_downstream_nodes(self, upstream=None):
+    def get_all_downstream_nodes(self, upstream):
         edges = self.get_downstream_edges(upstream)
 
-        if upstream is None:
-            downstream = {}
-
-            # edges is a list: TreeEdge
-            for e in edges:
-                downstream[e] = e.get_neighbor(self).get_all_downstream_nodes(e)
-
-            return downstream
+        # if upstream is None:
+        #     downstream = {}
+        #
+        #     # edges is a list: TreeEdge
+        #     for e in edges:
+        #         downstream[e] = e.get_neighbor(self).get_all_downstream_nodes(e)
+        #
+        #     return downstream
 
         downstream = []
 

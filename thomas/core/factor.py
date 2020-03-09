@@ -413,13 +413,15 @@ class Factor(object):
         """Proxy for pd.Series.unstack()."""
         return self._data.unstack(*args, **kwargs)
 
-    def dot(self, other):
-        """Return the dot (matrix) product."""
-        if isinstance(other, Factor):
-            # return Factor(self._data.dot(other._data))
-            other = other._data.unstack()
+    # melle: This wasn't used in any of the real code, only in the notebooks
+    #        as example.
+    # def dot(self, other):
+    #     """Return the dot (matrix) product."""
+    #     if isinstance(other, Factor):
+    #         # return Factor(self._data.dot(other._data))
+    #         other = other._data.unstack()
 
-        return Factor(self._data.dot(other))
+    #     return Factor(self._data.dot(other))
 
     def outer(self, other):
         """Return the outer product."""

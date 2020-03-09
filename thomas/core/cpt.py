@@ -107,11 +107,11 @@ class CPT(Factor):
 
         return f"""
             <div>
-                <div style='margin-top:6px'>
+                <div style="margin-top:6px">
                     <span><b>{self.display_name}</b></span>
                     <span style="font-style: italic;">{self.description}</span>
+                    {html}
                 </div>
-                {html}
             </div>
         """
 
@@ -128,12 +128,14 @@ class CPT(Factor):
 
         return super().unstack(level, *args, **kwargs)
 
-    def dot(self, other):
-        if isinstance(other, CPT):
-            return self._data.dot(other.unstack())
-
-        # Hail mary ... ;)
-        return self._data.dot(other)
+    # melle: This wasn't used in any of the real code, only in the notebooks
+    #        as example.
+    # def dot(self, other):
+    #     if isinstance(other, CPT):
+    #         return self._data.dot(other.unstack())
+    #
+    #     # Hail mary ... ;)
+    #     return self._data.dot(other)
 
     def as_factor(self):
         """Return the Factor representation of this CPT."""

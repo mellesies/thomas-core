@@ -347,9 +347,9 @@ class BayesianNetwork(ProbabilisticModel):
 
         return CPT(result, conditioned_variables=query_vars)
 
-    def reset_evidence(self, RV=None):
+    def reset_evidence(self):
         """Reset evidence for one or more RVs."""
-        self.junction_tree.reset_evidence(RV)
+        self.junction_tree.reset_evidence()
 
     def set_evidence_likelihood(self, RV, **kwargs):
         """Set likelihood evidence on a variable."""

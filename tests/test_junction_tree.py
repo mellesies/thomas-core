@@ -36,8 +36,19 @@ class TestJunctionTree(unittest.TestCase):
         jt.ensure_cluster(Q2)
         self.assertTrue(jt.get_node_for_set(Q2) is not None)
 
-
     def test_set_evidence_hard(self):
         """Test tree.set_evidence_hard()."""
         with self.assertRaises(error.InvalidStateError):
             self.Gs.jt.set_evidence_hard(I='i2')
+
+    def test_draw(self):
+        """Test tree.draw()."""
+        try:
+            self.Gs.jt.draw()
+        except Exception as e:
+            self.fail("Drawing the tree raised an exception!?")
+
+    def test_edge_repr(self):
+        """Test TreeEdge.__repr__()."""
+        edge = self.Gs.jt.edges[0]
+        self.assertTrue(repr(edge).startswith('Edge:'))

@@ -42,13 +42,13 @@ class TestFactor(unittest.TestCase):
         with self.assertRaises(Exception):
             fA.add('noooooo')
 
-    def test_dot(self):
-        """Test factor.dot()."""
-        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
-
-        fB = fA.dot(fB_A)
-        self.assertIsInstance(fB, Factor)
-        self.assertEqual(fB.sum(), 1)
+    # def test_dot(self):
+    #     """Test factor.dot()."""
+    #     fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+    #
+    #     fB = fA.dot(fB_A)
+    #     self.assertIsInstance(fB, Factor)
+    #     self.assertEqual(fB.sum(), 1)
 
     def test_extract_values(self):
         """Test factor.extract_values()."""
