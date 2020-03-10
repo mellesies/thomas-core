@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 
 import thomas.core
+import thomas.core.reader.oobn
+
 from .factor import Factor
 from .cpt import CPT
 from .jpt import JPT
@@ -65,10 +67,15 @@ def get_student_CPTs():
 
     return P
 
-def get_student_network():
+def get_student_network_from_CPTs():
     """Return the Student Bayesian Network."""
     P = get_student_CPTs()
     return BayesianNetwork.from_CPTs('Student', P.values())
+
+def get_student_network():
+    """Return the Student Bayesian Network."""
+    filename = thomas.core.get_pkg_data('student.json')
+    return BayesianNetwork.open(filename)
 
 def get_sprinkler_factors():
     """Return the factors for the Sprinkler Bayesian Network.

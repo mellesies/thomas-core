@@ -32,7 +32,6 @@ setup(
     url='https://github.com/mellesies/thomas-core',
     author='Melle Sieswerda',
     author_email='m.sieswerda@iknl.nl',
-    license='Apache 2.0',
     packages=find_namespace_packages(include=['thomas.*']),
     package_data={
         "thomas.core": [
@@ -46,10 +45,10 @@ setup(
     python_requires='>= 3.6',
     install_requires=[
         'lark-parser',
-        'networkx',
-        'numpy',
-        'pandas',
+        'matplotlib>=3.1',
+        'networkx>=2.4',
+        'numpy>=1.18',
+        'pandas>=1',
         'termcolor',
-        'matplotlib',
     ],
 )

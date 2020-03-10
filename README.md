@@ -9,8 +9,14 @@ Example (module `thomas.core.examples`) contains examples from the book "Probabi
 * [6a. Inference by Variable Elimination I (Chapter 6)](https://www.youtube.com/watch?v=7oRReD_ayWo).
 * [6b. Inference by Variable Elimination II (Chapter 6)](https://www.youtube.com/watch?v=QSSmx1ndUvg).
 
-For information on how to setup a network based on (known) conditional probabilities see `pybn.examples.get_student_network()` or have a look at the [examples.ipynb](examples.ipynb) notebook.
+## Installation
 
+To install use pip:
+
+    $ pip install git+https://github.com/mellesies/thomas-core.git
+
+
+## Usage
 To get started with querying a network, try the following:
 ```python
 from thomas.core import examples
