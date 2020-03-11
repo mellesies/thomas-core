@@ -145,11 +145,17 @@ def get_sprinkler_jpt():
 
     return JPT(data, states)
 
-def get_sprinkler_network():
+def get_sprinkler_network_from_factors():
     """Return the Sprinkler Bayesian Network."""
     factors = get_sprinkler_factors()
     CPTs = [CPT(f) for f in factors]
     return BayesianNetwork.from_CPTs('Sprinkler', CPTs)
+
+
+def get_sprinkler_network():
+    """Return the Sprinkler Network."""
+    filename = thomas.core.get_pkg_data('sprinkler.json')
+    return BayesianNetwork.open(filename)
 
 def get_example7_factors():
     """Return the factors for a very simple BN.

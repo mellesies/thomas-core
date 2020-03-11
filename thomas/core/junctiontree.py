@@ -298,9 +298,10 @@ class JunctionTree(object):
         self.indicators[RV] = factor
         node.indicators.append(factor)
 
-    def reset_evidence(self):
-        """Reset evidence for one or more RVs."""
-        RVs = self.indicators
+    def reset_evidence(self, RVs=None):
+        """Reset evidence."""
+        if RVs is None:
+            RVs = self.indicators
 
         for RV in RVs:
             indicator = self.indicators[RV]
@@ -334,7 +335,7 @@ class JunctionTree(object):
             indicator = self.indicators[RV]
 
             if state not in indicator.index.get_level_values(RV):
-                state = state.replace(f'{RV}.', '')
+                # state = state.replace(f'{RV}.', '')
                 raise error.InvalidStateError(RV, state, indicator)
 
             # FIXME: it's not pretty to access Factor._data like this!

@@ -61,8 +61,9 @@ class BayesianNetwork(ProbabilisticModel):
         """
         self.name = name
 
-        # dictionary, indexed by nodes' random variables
+        # dictionaries, indexed by nodes' random variables
         self.nodes = {}
+        self.evidence = {}
 
         # Process the nodes and edges.
         if nodes:
@@ -75,6 +76,9 @@ class BayesianNetwork(ProbabilisticModel):
 
         # Cached junction tree
         self._jt = None
+
+        # Widget ...
+        self.__widget = None
 
     def __getitem__(self, RV):
         """x[name] <==> x.nodes[name]"""
@@ -127,6 +131,10 @@ class BayesianNetwork(ProbabilisticModel):
     def states(self):
         """Return a dict of states, indexed by random variable."""
         return {RV: self.nodes[RV].states for RV in self.nodes}
+
+    def setWidget(self, widget):
+        """Associate this BayesianNetwork with a BayesianNetworkWidget."""
+        self.__widget = widget
 
     # --- semi-private ---
     def _complete_case(self, case):
@@ -347,21 +355,36 @@ class BayesianNetwork(ProbabilisticModel):
 
         return CPT(result, conditioned_variables=query_vars)
 
-    def reset_evidence(self):
-        """Reset evidence for one or more RVs."""
-        self.junction_tree.reset_evidence()
+    def reset_evidence(self, RVs=None, notify=True):
+        """Reset evidence."""
+        self.junction_tree.reset_evidence(RVs)
+
+        if RVs:
+            for RV in RVs:
+                del self.evidence[RV]
+        else:
+            self.evidence = {}
+
+        if self.__widget and notify:
+            self.__widget.update()
 
     def set_evidence_likelihood(self, RV, **kwargs):
         """Set likelihood evidence on a variable."""
         self.junction_tree.set_evidence_likelihood(RV, **kwargs)
+        self.evidence[RV] = kwargs
 
-    def set_evidence_hard(self, RV, state):
+    def set_evidence_hard(self, RV, state, notify=True):
         """Set hard evidence on a variable.
 
         This corresponds to setting the likelihood of the provided state to 1
         and the likelihood of all other states to 0.
         """
         self.junction_tree.set_evidence_hard(**{RV: state})
+        self.evidence[RV] = state
+
+        if self.__widget and notify:
+            self.__widget.update()
+
 
     def get_marginals(self, RVs=None):
         """Return the probabilities for a set off/all RVs given set evidence."""
@@ -615,6 +638,9 @@ class DiscreteNetworkNode(Node):
 
         if cpt is not None:
             self.cpt = cpt
+
+            if self.description == '':
+                self.description = cpt.description
         else:
             self._cpt = None
 
