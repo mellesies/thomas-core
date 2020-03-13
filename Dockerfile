@@ -1,5 +1,5 @@
 # The Dockerfile tells Docker how to construct the image.
-FROM thomas-base-python3:latest
+FROM mellesies/thomas-base-python3:latest
 
 LABEL maintainer="Melle Sieswerda <m.sieswerda@iknl.nl>"
 
