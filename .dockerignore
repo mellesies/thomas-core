@@ -1,0 +1,6 @@
+**/.git
+**/.coverage
+**/htmlcov
+**/logs
+**/dist
+
