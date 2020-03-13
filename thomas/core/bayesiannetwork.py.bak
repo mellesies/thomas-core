@@ -1,0 +1,112 @@
+def get_fill_in_edges(edges, order, fill_in=None):
+    """Recursively compute the clusters for the elimination tree."""
+    # Make sure we're not modifying the method argument.
+    if fill_in is None:
+        fill_in = list()
+
+    order = list(order)
+
+    if order == []:
+        return fill_in
+
+    # Reconstruct the graph
+    G = nx.Graph()
+    G.add_nodes_from(order)
+    G.add_edges_from(edges)
+
+    node = order.pop(0)
+
+    # Make sure the neighbors from `node` are connected by adding fill-in
+    # edges.
+    neighbors = list(G.neighbors(node))
+
+    if len(neighbors) > 1:
+        for outer_idx in range(len(neighbors)):
+            n1 = neighbors[outer_idx]
+
+            for inner_idx in range(outer_idx+1, len(neighbors)):
+                n2 = neighbors[inner_idx]
+                G.add_edge(n1, n2)
+                fill_in.append((n1, n2))
+
+    G.remove_node(node)
+    cluster = set([node, ] + neighbors)
+
+    return get_fill_in_edges(G.edges, order, fill_in)
+
+def get_cluster_sequence(edges, order):
+    """Recursively compute the clusters for the elimination tree."""
+    # Make sure we're not modifying the method argument.
+    order = list(order)
+
+    if not len(order):
+        return []
+
+    # Reconstruct the graph
+    G = nx.Graph()
+    G.add_nodes_from(order)
+    G.add_edges_from(edges)
+
+    node = order.pop(0)
+
+    # Make sure the neighbors from `node` are connected by adding fill-in
+    # edges.
+    neighbors = list(G.neighbors(node))
+
+    if len(neighbors) > 1:
+        for outer_idx in range(len(neighbors)):
+            n1 = neighbors[outer_idx]
+
+            for inner_idx in range(outer_idx+1, len(neighbors)):
+                n2 = neighbors[inner_idx]
+                G.add_edge(n1, n2)
+
+    G.remove_node(node)
+    cluster = set([node, ] + neighbors)
+
+    return [cluster, ] + get_cluster_sequence(G.edges, order)
+
+def running_intersection(clusters):
+    for idx_i, C_i in enumerate(clusters[:-1]):
+        right_union = set.union(*clusters[idx_i+1:])
+        intersection = C_i.intersection(right_union)
+
+        print(f'idx_i:        {idx_i}')
+        print(f'cluster:      {C_i}')
+        print(f'right_union:  {right_union}')
+        print(f'intersection: {intersection}')
+
+        for c in clusters[idx_i+1:]:
+            if intersection.issubset(c):
+                print(f'contained in: {c}')
+                break
+
+        print()
+
+def merge_clusters(clusters):
+    clusters = list(clusters)
+    should_continue = True
+
+    while should_continue:
+        should_continue = False
+
+        for idx_i in range(len(clusters)):
+            modified = False
+            C_i = clusters[idx_i]
+
+            for idx_j in range(idx_i+1, len(clusters)):
+                C_j = clusters[idx_j]
+
+                if C_j.issubset(C_i):
+                    clusters[idx_j] = C_i
+                    clusters.pop(idx_i)
+
+                    modified = True
+                    should_continue = len(clusters) > 1
+                    break
+
+            if modified:
+                break
+
+    return clusters
+

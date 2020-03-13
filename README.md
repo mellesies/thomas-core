@@ -11,9 +11,29 @@ Example (module `thomas.core.examples`) contains examples from the book "Probabi
 
 ## Installation
 
-To install use pip:
+### Normal
+To install from PyPI use `pip`:
 
-    $ pip install git+https://github.com/mellesies/thomas-core.git
+```bash
+    pip install thomas-core
+```
+
+### Development
+To do a development install:
+
+```bash
+    git clone https://github.com/mellesies/thomas-core
+    cd thomas-core
+    pip install -e .
+```
+
+### Docker
+A Docker image is available for easy deployment. The following command will
+start a JupyterLab server, listening on `localhost`, port `8888`:
+
+```bash
+    docker run --rm -it -p 8888:8888 mellesies/thomas-core
+```
 
 
 ## Usage
