@@ -11,3 +11,4 @@ logs
 thomas/core/.vscode
 *.log
 htmlcov
+build
