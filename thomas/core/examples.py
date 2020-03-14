@@ -210,5 +210,7 @@ def get_example7_network():
 
 def get_lungcancer_network():
     """Load 'lungcancer.oobn'."""
-    filename = thomas.core.get_pkg_data('lungcancer.oobn')
-    return thomas.core.reader.oobn.read(filename)
+    # filename = thomas.core.get_pkg_data('lungcancer.oobn')
+    # return thomas.core.reader.oobn.read(filename)
+    filename = thomas.core.get_pkg_data('lungcancer.json')
+    return BayesianNetwork.open(filename)
