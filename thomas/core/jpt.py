@@ -9,7 +9,7 @@ from .cpt import CPT
 # JPT
 # ------------------------------------------------------------------------------
 class JPT(Factor, ProbabilisticModel):
-    """JPT."""
+    """Joint Probability Table."""
 
     @property
     def display_name(self):
@@ -18,28 +18,31 @@ class JPT(Factor, ProbabilisticModel):
         return f'JPT({names})'
 
     @classmethod
-    def from_incomplete_jpt(cls, jpt, variable_states=None):
-        """Create a full JPT from jpt that may not contain all combinations
-        of variable states.
+    def from_data(cls, df, cols=None, variable_states=None, complete_value=0):
+        """Create a full JPT from data (using Maximum Likelihood Estimation).
+
+        Determine the empirical distribution by ..
+          1. counting the occurrences of combinations of variable states; the
+             heavy lifting is done by Factor.from_data().
+          2. normalizing the result
+
+        Note that the this will *drop* any NAs in the data.
 
         Args:
-            jpt (pandas.Series): jpt ...
+            df (pandas.DataFrame): data
+            cols (list): columns in the data frame to use. If `None`, all
+                columns are used.
             variable_states (dict): list of allowed states for each random
                 variable, indexed by name. If variable_states is None, `jpt`
                 should be a pandas.Series with a proper Index/MultiIndex.
+            complete_value (int): Base (count) value to use for combinations of
+                variable states in the dataset.
+
+        Return:
+            JPT (normalized)
         """
-        if variable_states is None:
-            # We'll need to try to determine variable_states from the jpt
-            variable_states = dict(
-                zip(jpt.index.names, jpt.index.levels)
-            )
-
-        # Create a factor containing *all* combinations set to 0
-        f2 = Factor(0, variable_states)
-
-        # By summing the Factor with the Series all combinations not in the
-        # data are set to 0.
-        return JPT(f2 + jpt)
+        factor = Factor.from_data(df, cols, variable_states, complete_value)
+        return JPT(factor.normalize())
 
     def compute_dist(self, qd, ed=None):
         """Compute a (conditional) distribution.

@@ -137,22 +137,38 @@ class BayesianNetwork(ProbabilisticModel):
         self.__widget = widget
 
     # --- semi-private ---
-    def _complete_case(self, case):
-        """..."""
+    def complete_case(self, case, include_weights=True):
+        """Complete a single case.
+
+        Args:
+            case (pandas.Series): case to complete.
+            include_weights (bool): return multiple rows, including
+                probabilities (weights) for each possible combination of missing
+                values. If False, only the most likely case is returned.
+
+        Return:
+            pandas.Series or pandas.DataFrame
+        """
         missing = list(case[case.isna()].index)
-        evidence = [e for e in case.index if e not in missing]
+        evidence = {e: case[e] for e in case.index if e not in missing}
 
         try:
-            probabilities = self.compute_posterior(
-                missing,
-                case.to_dict()
+            jpt = self.compute_posterior(
+                qd=missing,
+                qv={},
+                ed=[],
+                ev=evidence
             )
+
         except error.InvalidStateError as e:
             print('WARNING - Could not complete case:', e)
-            return np.NaN
+            return
 
-        # Creata a dataframe by repeating the evicence multiple times
-        imputated = pd.DataFrame([case[evidence]] * len(jpt), index=jpt.index)
+        # Create a dataframe by repeating the evicence multiple times: once for
+        # each possible (combination of) value(s) of the missing variable(s).
+        # The brackets enclosing the evidence transpose the matrix. Note that
+        # indexing a Series with a dict treats the dict like an iterable.
+        imputated = pd.DataFrame([case[evidence]], index=jpt.index)
 
         # The combinations of missing variables are in the index. Reset the
         # index to make them part of the dataframe.
@@ -161,18 +177,37 @@ class BayesianNetwork(ProbabilisticModel):
         # Add the computed probabilities as weights
         imputated.loc[:, 'weight'] = jpt.values
 
-        return imputated
+        if include_weights:
+            order = list(case.index) + ['weight']
+            return imputated[order]
 
-    def _complete_cases(self, incomplete_cases):
-        # Create a dataframe that holds *all* unique cases. This way we can
-        # complete these cases once and then just count their frequency.
+        return imputated.loc[imputated.weight.idxmax(), list(case.index)]
 
-        # drop_duplicates() will work fine with NaNs
-        unique_cases = incomplete_cases.drop_duplicates().reset_index(drop=True)
+    def complete_cases(self, data, inplace=False):
+        """Impute missing values in data frame.
 
-        # apply() yields a Series where each entry holds a DataFrame.
-        dfs = unique_cases.apply(self._complete_case, axis=1)
-        dfs = dfs.dropna()
+        Args:
+            data (pandas.DataFrame): DataFrame that may have NAs.
+
+        Return:
+            pandas.DataFrame with NAs imputed.
+        """
+        # Subset of all rows that have missing values.
+        NAs = data[data.isna().any(axis=1)]
+        imputed = NAs.apply(
+            self.complete_case,
+            axis=1,
+            include_weights=False
+        )
+
+        # DataFrame.update updates values *in place* by default.
+        if inplace:
+            data.update(imputed)
+        else:
+            data = data.copy()
+            data.update(imputed)
+
+        return data
 
     # --- graph manipulation ---
     def add_nodes(self, nodes):
@@ -222,28 +257,19 @@ class BayesianNetwork(ProbabilisticModel):
             df (pandas.Dataframe): dataset that contains columns with names
                 corresponding to the variables in this BN's scope.
         """
-        # Determine the empirical distribution by ..
-        #   1. counting the occurrences of combinations for the variables in
-        #      scope of this BN; and
-        #   2. normalizing the result
-        #
-        # Note that the count opereation will also *drop* any NAs in the
-        # dataframe.
-        subset = df[self.scope]
-        subset['count'] = 1
-
-        counts = subset.groupby(self.scope).count()
-        counts = counts['count']
-
-        empirical = counts / counts.sum()
 
         # The empirical distribution may not contain all combinations of
-        # variable states; this fixes that by setting all missing entries to 0.
-        jpt = JPT.from_incomplete_jpt(empirical)
+        # variable states; `from_data` fixes that by setting all missing entries
+        # to 0.
+        jpt = JPT.from_data(df, cols=self.scope)
 
         for name, node in self.nodes.items():
             cpt = jpt.compute_dist(node.conditioned, node.conditioning)
             node.cpt = cpt
+
+        # CPTs have updated, so cache is no longer valid. JunctionTree will have
+        # to be recreated.
+        self._jt = None
 
     # --- inference ---
     def get_node_elimination_order(self):
@@ -283,6 +309,9 @@ class BayesianNetwork(ProbabilisticModel):
 
     def compute_marginals(self, qd=None, ev=None):
         """Compute the marginals of the query variables given the evidence.
+
+        Note that calling this method will reset any evidence previously set
+        using `set_evidence()`!
 
         Args:
             qd (list): Random variables to query
@@ -385,7 +414,6 @@ class BayesianNetwork(ProbabilisticModel):
         if self.__widget and notify:
             self.__widget.update()
 
-
     def get_marginals(self, RVs=None):
         """Return the probabilities for a set off/all RVs given set evidence."""
         return self.junction_tree.get_marginals(RVs)
@@ -465,16 +493,16 @@ class BayesianNetwork(ProbabilisticModel):
 
     def as_json(self, pretty=False):
         """Return a JSON representation (str) of this Bayesian Network."""
-        if pretty:
-            indent = 4
-        else:
-            indent = None
-
+        indent = 4 if pretty else None
         return json.dumps(self.as_dict(), indent=indent)
 
     def save(self, filename):
         with open(filename, 'w') as fp:
             fp.write(self.as_json(True))
+
+    def copy(self):
+        """Return a copy of this BN."""
+        return BayesianNetwork.from_dict(self.as_dict())
 
     @classmethod
     def from_dict(self, d):
@@ -482,7 +510,9 @@ class BayesianNetwork(ProbabilisticModel):
         name = d.get('name')
         nodes = [Node.from_dict(n) for n in d['nodes']]
         edges = d.get('edges')
-        return BayesianNetwork(name, nodes, edges)
+        # id_ = d.get('id')
+        bn = BayesianNetwork(name, nodes, edges)
+        return bn
 
     @classmethod
     def from_json(cls, json_str):
@@ -618,7 +648,7 @@ class Node(object):
 class DiscreteNetworkNode(Node):
     """Node in a Bayesian Network with discrete values."""
 
-    def __init__(self, RV, name=None, states=None, description='', cpt=None):
+    def __init__(self, RV, name=None, states=None, description='', cpt=None, position=None):
         """Initialize a new discrete Node.
 
         A Node represents a random variable (RV) in a Bayesian Network. For
@@ -634,7 +664,7 @@ class DiscreteNetworkNode(Node):
         super().__init__(RV, name, description)
 
         self.states = states or []
-        self.position = [0, 0]
+        self.position = position if position is not None else [0, 0]
 
         if cpt is not None:
             self.cpt = cpt

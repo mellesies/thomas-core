@@ -413,16 +413,6 @@ class Factor(object):
         """Proxy for pd.Series.unstack()."""
         return self._data.unstack(*args, **kwargs)
 
-    # melle: This wasn't used in any of the real code, only in the notebooks
-    #        as example.
-    # def dot(self, other):
-    #     """Return the dot (matrix) product."""
-    #     if isinstance(other, Factor):
-    #         # return Factor(self._data.dot(other._data))
-    #         other = other._data.unstack()
-
-    #     return Factor(self._data.dot(other))
-
     def outer(self, other):
         """Return the outer product."""
         df = pd.DataFrame(
@@ -541,6 +531,45 @@ class Factor(object):
         """Return a dict with data, indexed by tuples."""
         index = list(self.index)
         return dict(zip(index, self._data.to_list()))
+
+    @classmethod
+    def from_data(cls, df, cols=None, variable_states=None, complete_value=0):
+        """Create a full Factor from data (using Maximum Likelihood Estimation).
+
+        Determine the empirical distribution by counting the occurrences of
+        combinations of variable states.
+
+        Note that the this will *drop* any NAs in the data.
+
+        Args:
+            df (pandas.DataFrame): data
+            cols (list): columns in the data frame to use. If `None`, all
+                columns are used.
+            variable_states (dict): list of allowed states for each random
+                variable, indexed by name. If variable_states is None, `jpt`
+                should be a pandas.Series with a proper Index/MultiIndex.
+            complete_value (int): Base (count) value to use for combinations of
+                variable states in the dataset.
+
+        Return:
+            Factor (unnormalized)
+        """
+        cols = cols if cols else list(df.columns)
+        subset = df[cols]
+        counts = subset.groupby(cols).size()
+
+        if variable_states is None:
+            # We'll need to try to determine variable_states from the jpt
+            variable_states = dict(
+                zip(counts.index.names, counts.index.levels)
+            )
+
+        # Create a factor containing *all* combinations set to `complete_value`.
+        f2 = Factor(complete_value, variable_states)
+
+        # By summing the Factor with the Series all combinations not in the
+        # data are set to `complete_value`.
+        return Factor(f2 + counts)
 
     @classmethod
     def from_dict(cls, d):

@@ -151,7 +151,6 @@ def get_sprinkler_network_from_factors():
     CPTs = [CPT(f) for f in factors]
     return BayesianNetwork.from_CPTs('Sprinkler', CPTs)
 
-
 def get_sprinkler_network():
     """Return the Sprinkler Network."""
     filename = thomas.core.get_pkg_data('sprinkler.json')

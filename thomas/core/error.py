@@ -12,3 +12,7 @@ class InvalidStateError(Exception):
         name = factor.display_name
         msg = f"State '{state}' is invalid for variable '{variable}'"
         super().__init__(msg)
+
+class InvalidCPTError(Exception):
+    def __init__(self, msg):
+        super().__init__(msg)

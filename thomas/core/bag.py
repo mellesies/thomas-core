@@ -43,7 +43,8 @@ class Bag(ProbabilisticModel):
         """len(f) == f.__len__()"""
         return len(self._factors)
 
-    def _scope(self, factors):
+    @staticmethod
+    def _scope(factors):
         """Return the scope of a set of factors.
 
         This comprises the set of (unique) variables covered by the factors.

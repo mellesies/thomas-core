@@ -1,7 +1,7 @@
 # `make` is expected to be called from the directory that contains
 # this Makefile
 
-TAG := latest
+TAG ?= latest
 
 rebuild: clean build-dist
 
@@ -28,7 +28,7 @@ docker-image:
 
 docker-run:
 	# Run the docker image
-	docker run --rm -it -p 8888:8888 thomas-core:${TAG}
+	docker run --rm -it -p 8888:8888 --name thomas-core thomas-core:${TAG}
 
 docker-push:
 	mellesies/thomas-core:${TAG}

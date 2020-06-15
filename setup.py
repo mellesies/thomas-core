@@ -41,6 +41,7 @@ setup(
     package_data={
         "thomas.core": [
             "__build__",
+            "data/dataset_17_2.csv",
             "data/*.lark",
             "data/*.json",
             "data/*.oobn",

@@ -54,6 +54,20 @@ class ProbabilisticModel(object):
 
         return split(query_str) + split(given_str)
 
+    @classmethod
+    def create_query_string(cls, qd=None, qv=None, ed=None, ev=None):
+        """Generate a query string."""
+        qd_str = ','.join(qd) if qd else ''
+        qv_str = ','.join([f'{k}={v}' for k,v in qv.items()]) if qv else ''
+
+        ed_str = ','.join(ed) if ed else ''
+        ev_str = ','.join([f'{k}={v}' for k,v in ev.items()]) if ev else ''
+
+        Q = ','.join([q for q in [qd_str, qv_str] if q])
+        E = ','.join([e for e in [ed_str, ev_str] if e])
+
+        return '|'.join([p for p in [Q, E] if p])
+
     def compute_posterior(self, qd, qv, ed, ev):
         """Compute the (posterior) probability of query given evidence.
 
@@ -71,7 +85,6 @@ class ProbabilisticModel(object):
 
         Returns:
             CPT
-
         """
         raise NotImplementedError
 
