@@ -21,7 +21,7 @@ class JunctionTree(object):
         """Initialize a new JunctionTree.
 
         Args:
-            clusters (list): list of sets of RVs.
+            bn (BayesianNetwork): associated BN.
         """
         self._bn = bn
 
@@ -48,7 +48,6 @@ class JunctionTree(object):
         It is guaranteed that every family in the BN appears in one of the
         clusters (as stated in the definition of the junction tree).
         """
-
         bn = self._bn
 
         # Get the full set of clusters.
@@ -160,7 +159,6 @@ class JunctionTree(object):
                 # We'll compute union over the remaining clusters and determine
                 # the intersection with the current cluster.
                 intersection = C_i.intersection(set.union(*remaining_clusters))
-                # found = False
 
                 # According to the running intersection property, there should
                 # be a node/cluster that contains the above intersection.
@@ -169,25 +167,10 @@ class JunctionTree(object):
 
                    if intersection.issubset(C_j):
                        self.add_edge(node_i, node_j)
-                       # found = True
                        break
-
-                #if not found:
-                #    print('*** WARNING ***')
-                #    print('Could not add node_i: ', node_i)
-                #    print('C_i:', C_i)
-                #    print('remaining_clusters:')
-                #    for r in remaining_clusters:
-                #        print('  ', r)
-                #    print()
-                #
-                #    # Stop it right there!
-                #    msg = 'Could not find cluster/node containing intersection.'
-                #    raise Exception(msg)
 
     def _assign_factors(self, bn):
         """Assign the BNs factors (nodes) to one of the clusters."""
-
         bn = self._bn
 
         # Iterate over all nodes in the BN to assign each BN node/CPT to the
@@ -198,7 +181,8 @@ class JunctionTree(object):
             for jt_node in self.nodes.values():
                 # node.vars returns all variables in the node's factor
                 if bn_node.vars.issubset(jt_node.cluster):
-                    jt_node.add_factor(bn_node.cpt)
+                    # jt_node.add_factor(bn_node.cpt)
+                    jt_node.add_bn_node(bn_node)
                     self.set_node_for_RV(RV, jt_node)
 
                     states = {RV: bn_node.states}
@@ -288,14 +272,14 @@ class JunctionTree(object):
 
         return {RV: self.get_node_for_RV(RV).project(RV) for RV in RVs}
 
-    def add_node(self, cluster, factors=None):
-        """Add a node to the tree."""
-        node = TreeNode(cluster, factors)
+    def add_node(self, cluster):
+        """Add a node to the junction tree."""
+        node = TreeNode(cluster)
         self.nodes[node.label] = node
         return node
 
     def add_edge(self, node1, node2):
-        """Add an edge between two nodes."""
+        """Add an edge between two nodes in the junction tree."""
         assert isinstance(node1, TreeNode), "node1 should be a TreeNode!"
         assert isinstance(node2, TreeNode), "node2 should be a TreeNode!"
 
@@ -460,20 +444,18 @@ class TreeEdge(object):
 class TreeNode(object):
     """Node in an elimination/junction tree."""
 
-    def __init__(self, cluster, factors=None):
+    def __init__(self, cluster):
         """Create a new node.
 
         Args:
             cluster (set): set of RV names (strings)
-            factors (list): CPTs for the RVs in the cluster
         """
         self.cluster = cluster
         self.indicators = []
 
-        if factors:      # list: Factor
-            self._factors = factors
-        else:
-            self._factors = []
+        # dict of bayesiannetwork.Node instances, indexed by RV
+        self._bn_nodes = {}
+        self.__factors = []
 
         self._edges = [] # list: TreeEdge
         self._factors_multiplied = None   # cache
@@ -493,7 +475,8 @@ class TreeNode(object):
 
     @property
     def factors(self):
-        return self._factors + self.indicators
+        CPTs = [node.cpt for node in self._bn_nodes.values()]
+        return CPTs + self.__factors + self.indicators
 
     @property
     def vars(self):
@@ -510,11 +493,9 @@ class TreeNode(object):
     def factors_multiplied(self):
         """Compute the joint of the Node's factors."""
         if self._factors_multiplied is None:
-            factors = self._factors + self.indicators
-
             # Per documentation for reduce: "If initializer is not given and
             # sequence contains only one item, the first item is returned."
-            self._factors_multiplied = reduce(mul, factors)
+            self._factors_multiplied = reduce(mul, self.factors)
 
         return self._factors_multiplied
 
@@ -523,8 +504,8 @@ class TreeNode(object):
             self._edges.append(edge)
 
     def add_factor(self, factor):
-        """Add a factor to this Node."""
-        self._factors.append(factor)
+        """Add a factor to this TreeNode."""
+        self.__factors.append(factor)
         self._factors_multiplied = None
 
         # This can do harm
@@ -533,6 +514,10 @@ class TreeNode(object):
 
         for edge in self._edges:
             edge.recompute_separator()
+
+    def add_bn_node(self, node):
+        """Add a Bayesian Network node."""
+        self._bn_nodes[node.RV] = node
 
     def invalidate_cache(self):
         """Invalidate the cache.
@@ -617,35 +602,4 @@ class TreeNode(object):
             return result.normalize()
 
         return result
-
-# ------------------------------------------------------------------------------
-# EvidenceNode
-# ------------------------------------------------------------------------------
-class EvidenceNode(TreeNode):
-    """Node that can be used to set evidence or compute the prior."""
-
-    def __init__(self, cluster, factors=None):
-        """Initialize a new node."""
-        msg = "EvidenceNode cluster can only contain a single variable."
-        assert len(cluster) == 1, msg
-        assert factors is None or len(factors) == 1, msg
-
-        super().__init__(cluster, factors)
-
-    @property
-    def factor(self):
-        return self._factors[0]
-
-    def add_factor(self, factor):
-        if len(factors) > 0:
-            raise Exception('EvidenceNode can only contain a single variable.')
-
-        super().add_factor(factors)
-
-    def add_neighbor(self, edge):
-        if edge not in self._edges:
-            if len(self._edges) > 1:
-                raise Exception('EvidenceNode can only contain a single variable.')
-
-            super().add_neighbor(edge)
 

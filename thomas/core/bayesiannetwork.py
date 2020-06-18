@@ -296,23 +296,25 @@ class BayesianNetwork(ProbabilisticModel):
                     jpt = jt_node.joint
                     joints[node] = joints[node] + jpt if node in joints else jpt
 
-            # CPTs = {}
+            # Update CPTs for nodes *with* parents
             for node in nodes_with_parents:
                 jpt = joints[node].project(node.vars)
 
-                # CPTs[node] = jpt / jpt.project(node.conditioning)
                 node.cpt = CPT(jpt / jpt.project(node.conditioning))
 
+            # Update JPTs for nodes *without* parents
             for node in nodes_without_parents:
                 for jpt in joints.values():
+                    # Find a JPT that contains this node's RV
                     if node.vars.issubset(jpt.vars):
-                        # CPTs[node] = jpt.project(node.vars).normalize()
                         node.cpt = CPT(jpt.project(node.vars).normalize())
+
+                        # Break from the *inner* for loop
                         break
 
             # FIXME: Not very efficient. I'd like to keep the structure and only
             #   update the factors ...
-            self._jt = None
+            self.jt.invalidate_caches()
 
 
     def ML_estimation(self, df):
