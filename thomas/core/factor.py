@@ -13,7 +13,7 @@ from functools import reduce
 import json
 
 import logging
-log = logging.getLogger('thomas')
+log = logging.getLogger('thomas.factor')
 
 import thomas.core
 import thomas.core.base
@@ -22,59 +22,6 @@ from thomas.core import error
 # ------------------------------------------------------------------------------
 # Helper functions.
 # ------------------------------------------------------------------------------
-"""
-def mul(x1, x2, debug=False):
-    if debug:
-        try:
-            print('-' * 80)
-            print(f'x1: {x1.scope}')
-            print(x1)
-            print('-' * 80)
-            print(f'x2: {x2.scope}')
-            print(x2)
-            print()
-        except Exception as e:
-            print('x1:', x1, type(x1))
-            print('-' * 80)
-            print('x2:', x2, type(x2))
-            print()
-
-    try:
-        if isinstance(x1, Factor):
-            result = x1.mul(x2)
-        elif isinstance(x2, Factor):
-            result = x2.mul(x1)
-        else:
-            result = x1 * x2
-
-    except Exception as e:
-        print('-' * 80)
-        print(e)
-        print('-' * 80)
-        print('could not multiply two factors')
-        print(f'x1: {x1.display_name}: {x1.scope}')
-        print(x1)
-        print('-' * 80)
-        print(f'x2: {x2.display_name}: {x2.scope}')
-        print(x2)
-        print()
-        raise
-
-    if debug:
-        try:
-            print('result:', result.scope)
-        except Exception as e:
-            print('result is not a factor')
-
-        print(result)
-        print('-' * 80)
-        print()
-
-    if isinstance(result, Factor):
-        result = result.reorder_scope()
-    return result
-"""
-
 
 def mul(x1, x2):
     """Multiply two Factors with each other.
@@ -145,17 +92,9 @@ class Factor(object):
         """A + B <=> A.__add__(B)"""
         return self.add(other)
 
-    # def __radd__(self, other):
-    #     """A + B <=> A.__radd__(B)"""
-    #     return self.add(other)
-
     def __mul__(self, other):
         """A * B <=> A.mul(B)"""
         return self.mul(other)
-
-    # def __rmul__(self, other):
-    #     """A * B <=> A.mul(B)"""
-    #     return self.mul(other)
 
     def __truediv__(self, other):
         """A / B <=> A.div(B)"""
@@ -209,8 +148,8 @@ class Factor(object):
     @property
     def variable_states(self):
         """Return a dict of variable states."""
-        if self._variable_states is not None:
-            return self._variable_states
+        # FIXME: why did I make this a property?
+        return self._variable_states
 
     @classmethod
     def _index_from_variable_states(cls, variable_states):
@@ -266,52 +205,31 @@ class Factor(object):
         """A * B <=> A.mul(B)"""
         if isinstance(other, (int, float, np.float, np.float64)):
             # Handle multiplication with scalars quick and easy.
+            # log.debug('Multiplying float')
             return Factor(self._data.mul(other), self.variable_states)
 
         elif isinstance(other, Factor):
-            if (not self.overlaps_with(other)
-                and self.display_name != other.display_name):
+            # log.debug('Multiplying Factor')
+
+            if not self.overlaps_with(other):
+                # log.debug(' ... without overlap')
                 return self.outer(other)
 
             # If we're here, other is a Factor *with* overlap with `self`
+            # log.debug(' ... with overlap')
             other = other.reorder_scope()
 
         elif isinstance(other, pd.Series):
             # This only works if the series has a proper (multi)index set.
             other = Factor(other)
 
+        # Create a new Factor that combines the scope of self and other;
+        # this ensures that the index remains correct :-).
+        # The syntax below is from PEP 448
+        variable_states = {**self.variable_states, **other.variable_states}
+        full = Factor(1, variable_states)
 
-        # Safety precaution. Really only necessary when multiplying a Series or
-        # another Factor.
-        me = self.reorder_scope()
-
-        if len(me) == 1 and len(other) == 1:
-            # Pandas has the nasty habit to mess up multiindexes when
-            # multiplying two Series with a single row. At that point, order
-            # suddenly becomes important (i.e. s1 * s2 != s2 * s1) and the index
-            # of the first Series is reused. The code below is to make sure
-            # that all levels of the index are copied to the end result.
-            multiplied = me._data.mul(other._data)
-            i1, i2 = multiplied.index, other._data.index
-            names = [n for n in i2.names if n not in i1.names]
-
-            if not names:
-                # Apparently all levels of the index made it to the result.
-                # We're done.
-                return Factor(multiplied)
-
-            # Apparently we're missing one or more indices. We know that we're
-            # dealing with an index for a single row, so we can safely get the
-            # first item from the level values
-            keys = [i2.get_level_values(n)[0] for n in names]
-
-            # We're creating an index for a single row: tuple(keys) is the
-            # actual index.
-            keys = [tuple(keys)]
-            concatted = pd.concat([multiplied], keys=keys, names=names)
-            return Factor(concatted)
-
-        result = me._data.mul(other._data)
+        result = full._data * self._data * other._data
         return Factor(result)
 
     def div(self, other, *args, **kwargs):

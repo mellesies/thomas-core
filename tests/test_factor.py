@@ -42,14 +42,6 @@ class TestFactor(unittest.TestCase):
         with self.assertRaises(Exception):
             fA.add('noooooo')
 
-    # def test_dot(self):
-    #     """Test factor.dot()."""
-    #     fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
-    #
-    #     fB = fA.dot(fB_A)
-    #     self.assertIsInstance(fB, Factor)
-    #     self.assertEqual(fB.sum(), 1)
-
     def test_extract_values(self):
         """Test factor.extract_values()."""
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
@@ -96,6 +88,17 @@ class TestFactor(unittest.TestCase):
         # Factors with single entries
         fA_sq = fA.keep_values(A='a1') * fA.keep_values(A='a1')
         self.assertEqual(fA_sq['a1'], 0.36)
+
+    def test_factor_mul(self):
+        """Test factor.Factor.mul()."""
+        fH, fS_H, fE_H = examples.get_example17_2_factors()
+
+        # Scope of multiplied result should be {H, S}
+        self.assertEqual((fH * fS_H).vars, {'H', 'S'})
+
+        # Scope of multiplied result should be {H, S, E}
+        self.assertEqual((fE_H * fS_H).vars, {'H', 'S', 'E'})
+
 
     def test_getitem(self):
         """Test casting to Factor when accessing Factor by index."""

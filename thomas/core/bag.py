@@ -98,8 +98,16 @@ class Bag(ProbabilisticModel):
             factors.append(new_factor)
 
         result = reduce(mul, factors)
-        result = result.reorder_scope(Q)
-        result.sort_index()
+
+        if isinstance(result, Factor):
+            try:
+                result = result.reorder_scope(Q)
+                result.sort_index()
+            except Exception as e:
+                log.error(f'Could not reorder scope: {e}')
+                log.error(result.scope)
+                pass
+
         return result
 
     def compute_posterior(self, qd, qv, ed, ev):
@@ -137,21 +145,7 @@ class Bag(ProbabilisticModel):
 
         # If query values were specified we can extract them from the factor.
         if qv:
-            values = list(qv.values())
-
-            if result.width == 1:
-                result = result[values[0]]
-
-            elif result.width > 1:
-                indices = []
-
-                for level, value in qv.items():
-                    idx = result._data.index.get_level_values(level) == value
-                    indices.append(list(idx))
-
-                zipped = list(zip(*indices))
-                idx = [all(x) for x in zipped]
-                result = Factor(result._data[idx])
+            result = result.extract_values(**qv)
 
         if isinstance(result, Factor):
             result.sort_index()

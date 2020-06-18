@@ -5,7 +5,7 @@
         {
             "type": "DiscreteNetworkNode",
             "RV": "A",
-            "name": "A",
+            "name": "Winter?",
             "states": [
                 "a1",
                 "a0"
@@ -40,7 +40,7 @@
         {
             "type": "DiscreteNetworkNode",
             "RV": "B",
-            "name": "B",
+            "name": "Sprinkler?",
             "states": [
                 "b1",
                 "b0"
@@ -84,7 +84,7 @@
         {
             "type": "DiscreteNetworkNode",
             "RV": "C",
-            "name": "C",
+            "name": "Rain?",
             "states": [
                 "c1",
                 "c0"
@@ -128,7 +128,7 @@
         {
             "type": "DiscreteNetworkNode",
             "RV": "D",
-            "name": "D",
+            "name": "Wet grass?",
             "states": [
                 "d1",
                 "d0"
@@ -182,7 +182,7 @@
         {
             "type": "DiscreteNetworkNode",
             "RV": "E",
-            "name": "E",
+            "name": "Slippery Road?",
             "states": [
                 "e1",
                 "e0"

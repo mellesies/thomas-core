@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Example Bayesian networks."""
+"""Example Bayesian networks.
+
+Includes examples from ...
+- Koller & Friedman's "Probabilistic Graphical Models"
+- Adnan Darwiche's "Modeling and Reasoning with Bayesian Networks"
+"""
 import os
 
 import numpy as np
@@ -152,7 +157,8 @@ def get_sprinkler_network_from_factors():
     return BayesianNetwork.from_CPTs('Sprinkler', CPTs)
 
 def get_sprinkler_network():
-    """Return the Sprinkler Network."""
+    """Return the Sprinkler Network.
+    """
     filename = thomas.core.get_pkg_data('sprinkler.json')
     return BayesianNetwork.open(filename)
 
@@ -195,9 +201,9 @@ def get_example7_network():
     (page 154) by Adnan Darwiche (2009).
     """
     fA, fB_A, fC_B = get_example7_factors()
-    nA = DiscreteNetworkNode('A', fA)
-    nB = DiscreteNetworkNode('B', fB_A)
-    nC = DiscreteNetworkNode('C', fC_B)
+    nA = DiscreteNetworkNode('A', cpt=CPT(fA))
+    nB = DiscreteNetworkNode('B', cpt=CPT(fB_A))
+    nC = DiscreteNetworkNode('C', cpt=CPT(fC_B))
 
     bn = BayesianNetwork(
         'class',
@@ -206,6 +212,115 @@ def get_example7_network():
     )
 
     return bn
+
+def get_example17_2_factors():
+    """Return the factors for a very simple BN.
+
+    Data copied from "Modeling and Reasoning with Bayesian Networks"
+    (Figure 17.2, page 441) by Adnan Darwiche (2009).
+    """
+    fH = Factor.from_dict({
+        'type': 'Factor',
+        'scope': ['H'],
+        'variable_states': {'H': ['F', 'T']},
+        'data': [0.25, 0.75]
+     })
+
+    fS_H = Factor.from_dict({
+        'type': 'Factor',
+        'scope': ['H', 'S'],
+        'variable_states': {'H': ['F', 'T'], 'S': ['F', 'T']},
+        'data': [0.75, 0.25, 0.84, 0.16]
+    })
+
+    fE_H = Factor.from_dict({
+        'type': 'Factor',
+        'scope': ['H', 'E'],
+        'variable_states': {'H': ['F', 'T'], 'E': ['F', 'T']},
+        'data': [0.5, 0.5, 0.084, 0.916]
+    })
+
+    return fH, fS_H, fE_H
+
+def get_example17_2_network():
+    """Return the network Darwiche's chapter 17.2."""
+    fH, fS_H, fE_H = get_example17_2_factors()
+
+    nH = DiscreteNetworkNode('H', name='Health aware', cpt=CPT(fH), position=[165, 29])
+    nS = DiscreteNetworkNode('S', name='Smokes', cpt=CPT(fS_H), position=[66,141])
+    nE = DiscreteNetworkNode('E', name='Exercices', cpt=CPT(fE_H), position=[288,154])
+
+    # nH = DiscreteNetworkNode('H', cpt=CPT(fH), position=[165, 29])
+    # nS = DiscreteNetworkNode('S', cpt=CPT(fS_H), position=[66,141])
+    # nE = DiscreteNetworkNode('E', cpt=CPT(fE_H), position=[288,154])
+
+    bn = BayesianNetwork(
+        'Health',
+        [nH, nS, nE],
+        [('H', 'S'), ('H', 'E')]
+    )
+
+    return bn
+
+def get_example17_3_factors():
+    """..."""
+    states = {
+        'A': ['a1', 'a2'],
+        'B': ['b1', 'b2'],
+        'C': ['c1', 'c2'],
+        'D': ['d1', 'd2'],
+    }
+
+    # P(A)
+    fA = Factor(
+        [0.2, 0.8],
+        subset(states, ['A'])
+    )
+
+    # P(B|A)
+    fB_A = Factor(
+        [0.75, 0.25, 0.10, 0.90],
+        subset(states, ['A', 'B'])
+    )
+
+    # P(C|A)
+    fC_A = Factor(
+        [0.5, 0.5, 0.25, 0.75],
+        subset(states, ['A', 'C'])
+    )
+
+    # P(D|B)
+    fD_B = Factor(
+        [0.2, 0.8, 0.7, 0.3],
+        subset(states, ['B', 'D'])
+    )
+
+    return fA, fB_A, fC_A, fD_B
+
+def get_example17_3_network():
+    """..."""
+    fA, fB_A, fC_A, fD_B = get_example17_3_factors()
+
+    positions = {
+        'A': [184, 23],
+        'B': [58, 117],
+        'C': [288, 117],
+        'D': [58, 222]
+    }
+
+    nA = DiscreteNetworkNode('A', cpt=CPT(fA), position=positions['A'])
+    nB = DiscreteNetworkNode('B', cpt=CPT(fB_A), position=positions['B'])
+    nC = DiscreteNetworkNode('C', cpt=CPT(fC_A), position=positions['C'])
+    nD = DiscreteNetworkNode('D', cpt=CPT(fD_B), position=positions['D'])
+
+    bn = BayesianNetwork(
+        'Example 17.3',
+        [nA, nB, nC, nD],
+        [('A', 'B'), ('A', 'C'), ('B', 'D')]
+    )
+
+    return bn
+
 
 def get_lungcancer_network():
     """Load 'lungcancer.oobn'."""

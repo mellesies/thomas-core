@@ -38,7 +38,16 @@ class JunctionTree(object):
         self._assign_factors(bn)
 
     def _get_elimination_clusters(self):
-        """Compute the clusters for the elimination tree."""
+        """Compute the clusters for the elimination tree.
+
+        The cluster of node i in an elimination tree, is defined as the
+        union of its variables and the variables that appear on its separators.
+
+        A family in the Bayesian network is defined as a node and its parents.
+
+        It is guaranteed that every family in the BN appears in one of the
+        clusters (as stated in the definition of the junction tree).
+        """
 
         bn = self._bn
 
@@ -269,6 +278,9 @@ class JunctionTree(object):
 
         return None
 
+    # Alias
+    get_node_for_family = get_node_for_set
+
     def get_marginals(self, RVs=None):
         """Return the probabilities for a set off/all RVs given set evidence."""
         if RVs is None:
@@ -276,7 +288,6 @@ class JunctionTree(object):
 
         return {RV: self.get_node_for_RV(RV).project(RV) for RV in RVs}
 
-    # def add_node(self, cluster, factors=None, evidence=False):
     def add_node(self, cluster, factors=None):
         """Add a node to the tree."""
         node = TreeNode(cluster, factors)
@@ -493,7 +504,7 @@ class TreeNode(object):
 
     @property
     def joint(self):
-        return self.pull()
+        return self.pull().normalize()
 
     @property
     def factors_multiplied(self):

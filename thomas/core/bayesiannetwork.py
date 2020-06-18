@@ -27,7 +27,7 @@ from .junctiontree import JunctionTree, TreeNode
 from . import error
 
 import logging
-log = logging.getLogger('thomas')
+log = logging.getLogger('thomas.bn')
 
 
 
@@ -132,6 +132,16 @@ class BayesianNetwork(ProbabilisticModel):
         """Return a dict of states, indexed by random variable."""
         return {RV: self.nodes[RV].states for RV in self.nodes}
 
+    @property
+    def nodes_without_parents(self):
+        """Return the nodes without parents."""
+        return [n for n in self.nodes.values() if not n.has_parents()]
+
+    @property
+    def nodes_with_parents(self):
+        """Return the of nodes that children of (an)other node(s)."""
+        return [n for n in self.nodes.values() if n.has_parents()]
+
     def setWidget(self, widget):
         """Associate this BayesianNetwork with a BayesianNetworkWidget."""
         self.__widget = widget
@@ -152,6 +162,14 @@ class BayesianNetwork(ProbabilisticModel):
         missing = list(case[case.isna()].index)
         evidence = {e: case[e] for e in case.index if e not in missing}
 
+        if not missing:
+            if include_weights:
+                df = pd.DataFrame([case])
+                df['weight'] = 1
+                return df.reset_index(drop=True)
+
+            return case
+
         try:
             jpt = self.compute_posterior(
                 qd=missing,
@@ -168,20 +186,32 @@ class BayesianNetwork(ProbabilisticModel):
         # each possible (combination of) value(s) of the missing variable(s).
         # The brackets enclosing the evidence transpose the matrix. Note that
         # indexing a Series with a dict treats the dict like an iterable.
-        imputated = pd.DataFrame([case[evidence]], index=jpt.index)
+        imputed = pd.DataFrame([case[evidence]], index=jpt.index)
 
         # The combinations of missing variables are in the index. Reset the
         # index to make them part of the dataframe.
-        imputated = imputated.reset_index()
+        imputed = imputed.reset_index()
 
         # Add the computed probabilities as weights
-        imputated.loc[:, 'weight'] = jpt.values
+        imputed.loc[:, 'weight'] = jpt.values
 
         if include_weights:
             order = list(case.index) + ['weight']
-            return imputated[order]
+            return imputed[order]
 
-        return imputated.loc[imputated.weight.idxmax(), list(case.index)]
+        return imputed.loc[imputed.weight.idxmax(), list(case.index)]
+
+    def estimate_emperical(self, data):
+        """Estimate the emperical distribution from data."""
+        complete_case = lambda x: self.complete_case(x[1], include_weights=True)
+        expanded = list(map(complete_case, data.iterrows()))
+
+        summed = pd.concat(expanded).groupby(self.scope).sum()
+
+        # Factor(0, ...) creates a Factor of all zeroes containing all possible
+        # combinations of variable states. Adding to this Factor ensures the
+        # JPT is complete
+        return JPT(Factor(0, self.states) + (summed / summed.sum())['weight'])
 
     def complete_cases(self, data, inplace=False):
         """Impute missing values in data frame.
@@ -240,13 +270,50 @@ class BayesianNetwork(ProbabilisticModel):
         return list(G_moral.edges)
 
     # -- parameter estimation
-    def EM_learning(self, data, reset_CPTs=True):
+    def EM_learning(self, data, max_iterations=1):
         """Perform parameter learning.
         Sources:
             * https://www.cse.ust.hk/bnbook/pdf/l07.h.pdf
             * https://www.youtube.com/watch?v=NDoHheP2ww4
         """
-        pass
+        # Children (i.e. nodes with parents) identify the families in the BN.
+        nodes_with_parents = self.nodes_with_parents
+        nodes_without_parents = self.nodes_without_parents
+
+        for k in range(max_iterations):
+            # dict of joint distributions, indexed by family index
+            joints = {}
+
+            # Iterate over the data: set a row as evidence and compute the
+            # JPT for each family.
+            for _, row in data.iterrows():
+                self.reset_evidence()
+                self.junction_tree.set_evidence_hard(**row.dropna().to_dict())
+
+                for node in nodes_with_parents:
+                    jt_node = self.junction_tree.get_node_for_family(node.vars)
+
+                    jpt = jt_node.joint
+                    joints[node] = joints[node] + jpt if node in joints else jpt
+
+            # CPTs = {}
+            for node in nodes_with_parents:
+                jpt = joints[node].project(node.vars)
+
+                # CPTs[node] = jpt / jpt.project(node.conditioning)
+                node.cpt = CPT(jpt / jpt.project(node.conditioning))
+
+            for node in nodes_without_parents:
+                for jpt in joints.values():
+                    if node.vars.issubset(jpt.vars):
+                        # CPTs[node] = jpt.project(node.vars).normalize()
+                        node.cpt = CPT(jpt.project(node.vars).normalize())
+                        break
+
+            # FIXME: Not very efficient. I'd like to keep the structure and only
+            #   update the factors ...
+            self._jt = None
+
 
     def ML_estimation(self, df):
         """Perform Maximum Likelihood estimation of the BN parameters.
@@ -271,7 +338,28 @@ class BayesianNetwork(ProbabilisticModel):
         # to be recreated.
         self._jt = None
 
+    def likelihood(self, df, per_case=False):
+        """Return the likelihood of the current network parameters given data.
+
+        Warning: naive/slow implementation :-)
+        """
+        # Create a subset of the dataframe that only contains relevant columns
+        vars = self.vars.intersection(df.columns)
+        subset = df[vars]
+
+        # Compute the posterior probability for each row of data
+        func = lambda x: self.compute_posterior([], x.dropna().to_dict(), [], {})
+
+        result = subset.apply(func, axis=1)
+
+        if per_case:
+            return result
+
+        # Multiply the results with each other and return
+        return reduce(lambda x, y: x*y, result)
+
     # --- inference ---
+    # FIXME: this method probably belongs somewhere else
     def get_node_elimination_order(self):
         """Return a naïve elimination ordering, based on nodes' degree."""
         if self.elimination_order is None:
@@ -346,7 +434,7 @@ class BayesianNetwork(ProbabilisticModel):
             ev (dict): evidence values: values to set as evidence.
 
         Returns:
-            CPT
+            CPT or scalar (iff `qv` is specified)
         """
         # Evidence we can just set on the JT, but we'll need to compute the
         # joint over the other variables to answer the query.
@@ -382,7 +470,12 @@ class BayesianNetwork(ProbabilisticModel):
         if qv:
             result = result.extract_values(**qv)
 
-        return CPT(result, conditioned_variables=query_vars)
+        # FIXME: not sure what I think of the fact that we return scalars
+        #        if the result doesn't have a MultiIndex ...
+        if isinstance(result, Factor):
+            return CPT(result, conditioned_variables=query_vars)
+
+        return result
 
     def reset_evidence(self, RVs=None, notify=True):
         """Reset evidence."""
@@ -562,6 +655,14 @@ class Node(object):
     @property
     def parents(self):
         return self._parents
+
+    def has_parents(self):
+        """Return True iff this node has a parent."""
+        return len(self._parents) > 0
+
+    def has_children(self):
+        """Return True iff this node has children."""
+        return len(self._children) > 0
 
     def add_parent(self, parent, add_child=True):
         """Add a parent to the Node.
