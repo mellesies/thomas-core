@@ -2,8 +2,8 @@
 """Factor: the basis for all reasoning."""
 import os
 from datetime import datetime as dt
-
-from collections import OrderedDict
+import itertools
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -19,9 +19,19 @@ import thomas.core
 import thomas.core.base
 from thomas.core import error
 
+
 # ------------------------------------------------------------------------------
 # Helper functions.
 # ------------------------------------------------------------------------------
+def isiterable(obj):
+    """Return True iff an object is iterable."""
+    try:
+        iter(obj)
+    except Exception:
+        return False
+    else:
+        return True
+
 
 def mul(x1, x2):
     """Multiply two Factors with each other.
@@ -37,56 +47,119 @@ def mul(x1, x2):
     else:
         result = x1 * x2
 
-    if isinstance(result, Factor):
-        result = result.reorder_scope()
+    # if isinstance(result, Factor):
+    #     result = result.reorder_scope()
 
     return result
 
 
 # ------------------------------------------------------------------------------
+# FactorIndex
+# ------------------------------------------------------------------------------
+class FactorIndex(object):
+    """Index for Factors."""
+
+    def __init__(self, states):
+        """Initialize a new FactorIndex."""
+        self._index = self.get_index_tuples(states)
+
+    def __getitem__(self, RV):
+        """index[x] <==> index.__getitem__(x)"""
+        pass
+
+    @staticmethod
+    def get_index_tuples(states):
+        """Return an index as a list of tuples."""
+        return list(itertools.product(*states.values()))
+
+# ------------------------------------------------------------------------------
 # Factor
 # ------------------------------------------------------------------------------
 class Factor(object):
-    """Factor."""
+    """Factor for discrete variables.
 
-    def __init__(self, data, variable_states=None):
+    Code is heavily inspired (not to say partially copied from) by pgmpy's
+    DiscreteFactor. See https://github.com/pgmpy/pgmpy/blob/dev/pgmpy/factors/discrete/DiscreteFactor.py
+    """
+
+    def __init__(self, data, states):
         """Initialize a new Factor.
 
         Args:
-            data (list, pandas.Series, Factor): array of values.
-            variable_states (dict): list of allowed states for each random
-                variable, indexed by name. If variable_states is None, `data`
-                should be a pandas.Series with a proper Index/MultiIndex.
+            data (list): any iterable
+            states (dict): dictionary of random variables and their
+                corresponding states.
         """
-        if variable_states:
-            # Create a (Multi)Index from the variable states.
-            idx = self._index_from_variable_states(variable_states)
+        # msg = f'data ({type(data)}) is not iterable? states: {states}'
+        # assert isiterable(data), msg
 
-        elif (isinstance(data, pd.Series)
-            and isinstance(data.index, (pd.Index, pd.MultiIndex))):
-                data = data.copy()
-                idx = data.index
-                variable_states = thomas.core.base.index_to_dict(idx)
+        msg = f"'states should be a dict, but got {type(states)} instead?"
+        msg += f" type(data): {type(data)}"
+        assert isinstance(states, dict), msg
 
-        elif isinstance(data, Factor):
-            variable_states = data._variable_states
-            data = data._data.copy()
-            idx = data._data.index
+        if np.isscalar(data):
+            total_size = np.product([len(s) for s in states.values()])
+            data = np.repeat(data, total_size)
 
-        else:
-            msg =  'data should either be a pandas.Series *with* a proper'
-            msg += ' index or variable_states should be provided.'
-            raise Exception(msg)
+        # Copy & make sure we're dealing with a numpy array
+        data = np.array(data, dtype=float)
 
-        if np.issubdtype(type(data), np.integer):
-            data = float(data)
+        cardinality = [len(i) for i in states.values()]
+        expected_size = np.product(cardinality)
 
-        self._data = pd.Series(data, index=idx).dropna()
-        self._variable_states = variable_states
+        if data.size != expected_size:
+            raise ValueError(f"'data' must be of size/length: {expected_size}")
+
+        # copy to prevent modification
+        self.states = states.copy()
+
+        # create two dicts of dicts to map variable state names to index numbers
+        # and back
+        self.name_to_number = {}
+        self.number_to_name = {}
+
+        for RV, values in self.states.items():
+            self.name_to_number[RV] = {name: nr for nr, name in enumerate(self.states[RV])}
+            self.number_to_name[RV] = {nr: name for nr, name in enumerate(self.states[RV])}
+
+        # Storing the data as a multidimensional array helps with addition,
+        # subtraction, multiplication and division.
+        self.values = data.reshape(cardinality)
 
     def __repr__(self):
         """repr(f) <==> f.__repr__()"""
-        return f'{self.display_name}\n{repr(self._data)}'
+        if self.states:
+            return f'{self.display_name}\n{repr(self.as_series())}'
+
+        return f'{self.display_name}: {self.values:.2}'
+
+    def __eq__(self, other):
+        """f1 == f2 <==> f1.__eq__(f2)"""
+        return self.equals(other)
+
+    def __len__(self):
+        """len(factor) <==> factor.__len__()"""
+        return self.width
+
+    def __getitem__(self, keys):
+        """factor[x] <==> factor.__getitem__(x)"""
+
+        if isinstance(keys, list):
+            # FIXME: this is probably slow
+            indices = [self._keys_to_indices(idx) for idx in keys]
+            return [self.values[idx] for idx in indices]
+
+        return self.values[self._keys_to_indices(keys)]
+
+    def __setitem__(self, keys, value):
+        """factor[x] = y <==> factor.__setitem__(x, y)"""
+        self.values[self._keys_to_indices(keys)] = value
+
+    # def __getattr__(self, key):
+    #     if key not in self.states:
+    #         msg = f"'{self.__class__.__name__}' object has no attribute '{key}'"
+    #         raise AttributeError(msg)
+    #     return self.index_for(key)
 
     def __add__(self, other):
         """A + B <=> A.__add__(B)"""
@@ -100,35 +173,66 @@ class Factor(object):
         """A / B <=> A.div(B)"""
         return self.div(other)
 
-    def __getitem__(self, key):
-        """factor[x] <==> factor.__getitem__(x)"""
-        result = self._data.__getitem__(key)
+    def _keys_to_indices(self, keys):
+        """Return the indices for keys ..."""
+        if isinstance(keys, (str, slice)):
+            keys = (keys, )
 
-        if isinstance(result, pd.Series):
-            return Factor(result)
+        states = [(self.variables[i], state) for i, state in enumerate(keys)]
+        indices = [self.get_state_index(RV, state) for RV, state in states]
+        return tuple(indices)
 
-        return result
+    def _get_index_tuples(self):
+        """Return an index as a list of tuples.
 
-    def __len__(self):
-        """len(f) == f.__len__()"""
-        return len(self._data)
+        Args:
+            states (dict): dict of states, indexed by RV
 
-    @property
-    def index(self):
-        """Return the Factor index (without prefixes)."""
-        return self._data.index
+        Return:
+            list of tuples, making up all combinations of states.
+        """
+        # return np.array(list(itertools.product(*states.values())))
+        return list(itertools.product(*self.states.values()))
 
-    @property
-    def values(self):
-        """Return the factor values as an np.array"""
-        return self._data.values
+    def _get_state_idx(self, RV):
+        """Return ..."""
+
+        # Return the column that corresponds to the position of 'RV'
+        idx = np.array(self._get_index_tuples())
+        return idx[:, self.variables.index(RV)]
+
+    def _get_bool_idx(self, **kwargs):
+        """Return ..."""
+
+        # Only keep RVs that are in this factor's scope.
+        states = {RV: state for RV, state in kwargs.items() if RV in self.scope}
+
+        bools_per_RV = np.array([
+            [s == state for s in self._get_state_idx(RV)]
+            for RV, state in states.items()
+        ])
+
+        return bools_per_RV.all(axis=0)
 
     @property
     def display_name(self):
-        names = [n for n in self._data.index.names if n is not None]
+        names = list(self.states.keys())
         names = ','.join(names)
 
         return f'factor({names})'
+
+    @property
+    def cardinality(self):
+        """Return the size of the dimensions of this Factor."""
+        return self.values.shape
+
+    @property
+    def scope(self):
+        """Return the scope of this factor."""
+        return list(self.states.keys())
+
+    # Alias
+    variables = scope
 
     @property
     def vars(self):
@@ -136,138 +240,294 @@ class Factor(object):
         return set(self.scope)
 
     @property
-    def scope(self):
-        """Return the scope of this factor."""
-        return list(self._data.index.names)
-
-    @property
     def width(self):
         """Return the width of this factor."""
         return len(self.scope)
 
     @property
-    def variable_states(self):
-        """Return a dict of variable states."""
-        # FIXME: why did I make this a property?
-        return self._variable_states
+    def flat(self):
+        """Return the values as a flat list."""
+        return self.values.reshape(-1)
 
-    @classmethod
-    def _index_from_variable_states(cls, variable_states):
-        """Create an pandas.Index or pandas.MultiIndex from a dictionary."""
-        if len(variable_states) == 1:
-            # Cast type dict_items to a list so we can use indexes
-            variable_states = list(variable_states.items())
+    def reorder_scope(self, order, inplace=False):
+        """Reorder the scope."""
+        factor = self if inplace else Factor.copy(self)
 
-            # The first and only item is a tuple
-            var_name, var_states = variable_states[0]
+        # rearranging the axes of 'factor' to match 'order'
+        variables = factor.variables
 
-            # Create a pandas.Index
-            idx = pd.Index(var_states, name=var_name)
+        for axis in range(factor.values.ndim):
+            exchange_index = variables.index(order[axis])
 
-        else:
-            idx = pd.MultiIndex.from_product(
-                variable_states.values(),
-                names=variable_states.keys()
+            variables[axis], variables[exchange_index] = (
+                variables[exchange_index],
+                variables[axis],
             )
 
-        return idx
+            factor.values = factor.values.swapaxes(axis, exchange_index)
 
-    def equals(self, other, precision=3):
-        """Test whether two objects contain the same elements."""
-        return self._data.round(precision).equals(other._data.round(precision))
+        factor.states = {key: factor.states[key] for key in order}
 
-    def max(self):
-        """Proxy for pandas.Series.max()"""
-        return self._data.max()
+        if not inplace:
+            return factor
 
-    def idxmax(self):
-        """Proxy for pandas.Series.idmax()"""
-        return self._data.idxmax()
+    def align_index(self, other):
+        """..."""
+        indices = other._get_index_tuples()
+        values = self[indices]
+        return Factor(values, other.states)
+
+    def extend_with(self, other, inplace=False):
+        """Extend this factor with the variables & states of another."""
+        factor = self if inplace else Factor.copy(self)
+
+        # Note: the order of 'extra_vars' holds no importance ..
+        extra_vars = set(other.variables) - set(factor.variables)
+
+        if extra_vars:
+            # Create as many new dimensions in the array as there are
+            # additional variables.
+            slice_ = [slice(None)] * len(factor.variables)
+            slice_.extend([np.newaxis] * len(extra_vars))
+            factor.values = factor.values[tuple(slice_)]
+
+            factor.states.update(other.states)
+            factor.name_to_number.update(other.name_to_number)
+            factor.number_to_name.update(other.number_to_name)
+
+        if not inplace:
+            return factor
+
+    def extend_and_reorder(self, factor, other):
+        """Extend factors factor and other to be over the same scope and
+        reorder their axes to match.
+        """
+        # Assuming 'other' is another Factor.
+        other = Factor.copy(other)
+
+        # modifying 'factor' (self) to add new variables
+        factor.extend_with(other, inplace=True)
+
+        # modifying 'other' to add new variables
+        other.extend_with(factor, inplace=True)
+
+        # rearranging the axes of 'other' to match 'factor'
+        other.reorder_scope(factor.variables, inplace=True)
+
+        # Since factor was modified in place, returning it is technically
+        # unnecessary   .
+        return factor, other
+
+    def copy(self):
+        """Return a copy of this Factor."""
+        return Factor(self.values, self.states)
 
     def sum(self):
         """Sum all values of the factor."""
-        return self._data.sum()
+        return self.values.sum()
 
-    def add(self, other):
-        """A + B <=> A.__add__(B)"""
-        if isinstance(other, (pd.Series, int, float, np.float, np.float64)):
-            # Add the data as pd.Series
-            f2 = self._data.add(other)
-            f2[f2.isna()] = 0
-            return Factor(f2)
+    def add(self, other, inplace=False):
+        """A + B <=> A.add(B)"""
+        factor = self if inplace else Factor.copy(self)
 
-        elif isinstance(other, Factor):
-            return Factor(self._data.add(other._data))
+        if isinstance(other, (int, float)):
+            factor.values += other
 
-        raise Exception(f'Unsure how to add {type(other)}')
+        else:
+            # # Assuming 'other' is another Factor.
+            factor, other = self.extend_and_reorder(factor, other)
+            factor.values = factor.values + other.values
 
-    def mul(self, other):
+        if not inplace:
+            return factor
+
+    def mul(self, other, inplace=False):
         """A * B <=> A.mul(B)"""
-        if isinstance(other, (int, float, np.float, np.float64)):
-            # Handle multiplication with scalars quick and easy.
-            # log.debug('Multiplying float')
-            return Factor(self._data.mul(other), self.variable_states)
+        factor = self if inplace else Factor.copy(self)
 
-        elif isinstance(other, Factor):
-            # log.debug('Multiplying Factor')
+        if isinstance(other, (int, float)):
+            factor.values *= other
 
-            if not self.overlaps_with(other):
-                # log.debug(' ... without overlap')
-                return self.outer(other)
+        else:
+            # # Assuming 'other' is another Factor.
+            factor, other = self.extend_and_reorder(factor, other)
+            factor.values = factor.values * other.values
 
-            # If we're here, other is a Factor *with* overlap with `self`
-            # log.debug(' ... with overlap')
-            other = other.reorder_scope()
+        if not inplace:
+            return factor
 
-        elif isinstance(other, pd.Series):
-            # This only works if the series has a proper (multi)index set.
-            other = Factor(other)
+    def div(self, other, inplace=False):
+        """A / B <=> A.div(B)"""
+        factor = self if inplace else Factor.copy(self)
 
-        # Create a new Factor that combines the scope of self and other;
-        # this ensures that the index remains correct :-).
-        # The syntax below is from PEP 448
-        variable_states = {**self.variable_states, **other.variable_states}
-        full = Factor(1, variable_states)
+        if isinstance(other, (int, float)):
+            factor.values /= other
 
-        result = full._data * self._data * other._data
-        return Factor(result)
+        else:
+            # # Assuming 'other' is another Factor.
+            factor, other = self.extend_and_reorder(factor, other)
 
-    def div(self, other, *args, **kwargs):
-        """A / B <=> A.mul(B)"""
-        if isinstance(other, Factor):
-            return Factor(self._data.div(other._data, *args, **kwargs))
+            with warnings.catch_warnings(record=True) as w:
+                # Cause all warnings to always be triggered.
+                warnings.simplefilter("always")
 
-        return Factor(self._data.div(other))
+                factor.values = factor.values / other.values
+                factor.values[np.isnan(factor.values)] = 0
 
-    def overlaps_with(self, other):
-        """Return True iff the scope of this Factor overlaps with the scope of
-        other.
+                # if len(w) > 0:
+                #     print()
+                #     print(w)
+                #     print(factor.scope, factor.values)
+                #     print(other.scope, other.values)
+
+                # assert len(w) == 0
+
+                # factor.values = values
+
+        if not inplace:
+            return factor
+
+    def get_state_names(self, RV, idx):
+        """Return the state for RV at idx."""
+        return self.number_to_name[RV][idx]
+
+    def del_state_names(self, RVs):
+        """Deletes the state names for variables in RVs."""
+        for RV in RVs:
+            del self.states[RV]
+            del self.name_to_number[RV]
+            del self.number_to_name[RV]
+
+    def get_state_index(self, RV, state):
+        """Return the index for RV with state."""
+        if isinstance(state, slice):
+            return state
+
+        if isinstance(state, (tuple, list)):
+            return [self.name_to_number[RV][s] for s in state]
+
+        return self.name_to_number[RV][state]
+
+    def get(self, **kwargs):
+        """..."""
+        return self.flat[self._get_bool_idx(**kwargs)]
+
+    def set(self, value, inplace=False, **kwargs):
+        """Set a value to cells identified by **kwargs.
+
+        Examples
+        --------
+        >>> factor = Factor([1, 1], {'A': ['a0', 'a1']})
+        >>> print(factor)
+        factor(A)
+        A
+        a0    1.0
+        a1    1.0
+        dtype: float64
+        >>> factor.set(0, A='a0')
+        >>> print(factor)
+        factor(A)
+        A
+        a0    0.0
+        a1    1.0
+        dtype: float64
         """
-        own_scope = set(self.scope)
+        factor = self if inplace else Factor.copy(self)
 
-        if isinstance(other, Factor):
-            other_scope = set(other.scope)
+        factor.values.reshape(-1)[factor._get_bool_idx(**kwargs)] = value
+
+        if not inplace:
+            return factor
+
+    def set_complement(self, value, inplace=False, **kwargs):
+        """Set a value to cells *not* identified by **kwargs.
+
+        Examples
+        --------
+        >>> factor = Factor([1, 1], {'A': ['a0', 'a1']})
+        >>> print(factor)
+        factor(A)
+        A
+        a0    1.0
+        a1    1.0
+        dtype: float64
+        >>> factor.set_complement(0, A='a0')
+        >>> print(factor)
+        factor(A)
+        A
+        a0    1.0
+        a1    0.0
+        dtype: float64
+        """
+        factor = self if inplace else Factor.copy(self)
+
+        idx = np.invert(factor._get_bool_idx(**kwargs))
+        factor.flat[idx] = value
+
+        if not inplace:
+            return factor
+
+    def equals(self, other):
+        """Return True iff two Factors have (roughly) the same values."""
+        if not isinstance(other, Factor):
+            return False
+
+        if self.values.size != other.values.size:
+            return False
+
+        if set(self.scope) != set(other.scope):
+            return False
+
+        reordered = other.reorder_scope(self.scope).align_index(self)
+        return np.allclose(self.values, reordered.values)
+
+    def normalize(self, inplace=False):
+        """Normalize the Factor so the sum of all values is 1."""
+        factor = self if inplace else self.copy()
+
+        factor.values = factor.values / factor.values.sum()
+
+        if not inplace:
+            return factor
+
+    def sum_out(self, variables, simplify=False, inplace=False):
+        """Sum-out (marginalize) a variable (or list of variables) from the
+        factor.
+
+        Args:
+            variables (str, list): Name or list of names of variables to sum out.
+
+        Returns:
+            Factor: factor with the specified variable removed.
+        """
+        factor = self if inplace else Factor.copy(self)
+
+        if isinstance(variables, (str, tuple)):
+            variable_set = set([variables])
         else:
-            other_scope = set(other)
+            variable_set = set(variables)
 
-        return len(own_scope.intersection(other_scope)) > 0
+        if len(variable_set) == 0:
+            # Nothing to sum out ...
+            return factor
 
-    def reorder_scope(self, order=None):
-        """Reorder the variables in the scope."""
-        if self.width > 1:
-            if order is None:
-                order = self.scope
-                order.sort()
+        scope = set(factor.variables)
 
-            data = self._data.reorder_levels(order)
-            data = data.sort_index()
+        if not variable_set.issubset(scope):
+            raise error.NotInScopeError(variable_set, scope)
 
-        else:
-            data = self._data
+        # Unstack the requested variables into columns and sum over them.
+        var_indexes = [factor.variables.index(var) for var in variables]
 
-        return Factor(data)
+        index_to_keep = set(range(len(factor.variables))) - set(var_indexes)
+        factor.del_state_names(variables)
 
-    def project(self, Q):
+        factor.values = np.sum(factor.values, axis=tuple(var_indexes))
+
+        if not inplace:
+            return factor
+
+    def project(self, Q, inplace=False):
         """Project the current factor on Q.
 
         Args:
@@ -284,174 +544,61 @@ class Factor(object):
         if isinstance(Q, str):
             Q = {Q}
 
-        vars_to_sum_out = list(set(self.scope) - Q)
+        factor = self if inplace else Factor.copy(self)
+        vars_to_sum_out = list(set(factor.scope) - Q)
 
-        if len(vars_to_sum_out) == 0:
-            return Factor(self)
+        factor.sum_out(vars_to_sum_out, inplace=True)
 
-        if self.width == 1:
-            return self
+        if not inplace:
+            return factor
 
-        return self.sum_out(vars_to_sum_out)
+    # def zipped(self):
+    #     """Return a dict with data, indexed by tuples."""
+    #     return dict(zip(self._get_index_tuples(), self.values))
 
-    def sum_out(self, variable):
-        """Sum-out a variable (or list of variables) from the factor.
+    @classmethod
+    def from_series(cls, series):
+        """Create a Factor from a (properly indexed) pandas.Series."""
+        idx = series.index
 
-        This essentially removes a variable from the distribution.
-
-        Args:
-            variable (str, list): Name or list of names of variables to sum out.
-
-        Returns:
-            Factor: factor with the specified variable removed.
-        """
-        if isinstance(variable, (str, tuple)):
-            variable_set = set([variable])
+        if isinstance(idx, pd.MultiIndex):
+            states = {i.name: list(i) for i in idx.levels}
         else:
-            variable_set = set(variable)
+            states = {idx.name: list(idx)}
 
-        if len(variable_set) == 0:
-            # Nothing to sum out ...
-            return Factor(self)
-
-        scope = set(self.scope)
-
-        if not variable_set.issubset(scope):
-            raise error.NotInScopeError(variable_set, scope)
-
-        if len(variable_set) == self.width:
-            return self.sum()
-
-        # Unstack the requested variables into columns and sum over them.
-        unstacked = self._data.unstack(tuple(variable_set))
-        summed = unstacked.sum(axis=1)
-        return Factor(summed)
-
-    def unstack(self, *args, **kwargs):
-        """Proxy for pd.Series.unstack()."""
-        return self._data.unstack(*args, **kwargs)
-
-    def outer(self, other):
-        """Return the outer product."""
-        df = pd.DataFrame(
-            np.outer(self._data, other._data),
-            index=self._data.index,
-            columns=other._data.index
-        )
-
-        if isinstance(df.columns, pd.MultiIndex):
-            levels = df.columns.levels
-            stacked = df.stack(list(range(len(levels)))).squeeze()
-        else:
-            stacked = df.stack().squeeze()
-
-        try:
-            f = Factor(stacked)
-
-        except Exception as e:
-            log.error('Could not create Factor from outer product?')
-            log.error(f'type(stacked): {type(stacked)}')
-            log.error(f'stacked: {stacked}')
-            log.exception(e)
-            raise
-
-        return f
-
-    def droplevel(self, level):
-        """Proxy for pandas.Series.droplevel()"""
-        return Factor(self._data.droplevel(level))
-
-    def extract_values(self, **kwargs):
-        """Extract entries from the Factor by RV and value.
-
-        Kwargs:
-            dict of states, indexed by RV. E.g. {'G': 'g1'}
-        """
-        # Need to do some trickery to get the correct levels from the
-        # MultiIndex.
-        indices = []
-
-        for level, value in kwargs.items():
-            idx = self._data.index.get_level_values(level) == value
-            indices.append(list(idx))
-
-        zipped = list(zip(*indices))
-        idx = [all(x) for x in zipped]
-        data = self._data[idx]
-
-        levels = list(kwargs.keys())
-        last_level = levels[-1]
-        last_value = kwargs[last_level]
-
-        levels = levels[:-1]
-        data.index = data.index.droplevel(levels)
-
-        # Testing for pd.Index doesn't work since isinstance() caters for
-        # inheritance
-        if isinstance(data.index, pd.MultiIndex):
-            return Factor(data)
-
-        # This should be a scalar ...
-        return data[last_value]
-
-    def keep_values(self, **kwargs):
-        """Return a reduced factor."""
-
-        # when called like set_evidence(D='d1', E='e0'), we'll need to
-        # set rows that do not correspond to the evidence to zero.
-
-        # Find the (subset of) evidence that's related to this factor's scope.
-        levels = [l for l in kwargs.keys() if l in self.scope]
-        data = self._data.copy()
-
-        for l in levels:
-            value = kwargs[l]
-
-            if value not in data.index.get_level_values(l):
-                value = value.replace(f'{l}.', '')
-                raise error.InvalidStateError(l, value, self)
-
-            idx = data.index.get_level_values(l) != value
-            data[idx] = np.nan
-
-        return Factor(data.dropna())
-
-    def normalize(self):
-        """Normalize the factor so the sum of all values is 1."""
-        return self.__class__(self._data / self._data.sum())
-
-    def sort_index(self, *args, **kwargs):
-        """Sort the index of the Factor."""
-        return Factor(self._data.sort_index(*args, **kwargs))
+        return Factor(series.values, states)
 
     def as_series(self):
-        """Return the Factor as a pandas.Series."""
-        return pd.Series(self._data)
+        """Return a pandas.Series."""
+        idx = pd.MultiIndex.from_product(
+            self.states.values(),
+            names=self.states.keys()
+        )
+
+        return pd.Series(self.values.reshape(-1), index=idx)
+
+    @classmethod
+    def from_dict(cls, d):
+        """Return a Factor initialized by its dict representation."""
+
+        # Scope is guaranteed to be ordered in JSON
+        scope = d['scope']
+
+        states = {RV: d['states'][RV] for RV in scope}
+        return Factor(d['data'], states)
 
     def as_dict(self):
         """Return a dict representation of this Factor."""
-        data = self._data
-
-        if self.width > 1:
-            data = data.reorder_levels(self.scope)
-
-        # Remove any prefixes ...
-        variable_states = self.variable_states
 
         return {
             'type': 'Factor',
             'scope': self.scope,
-            'variable_states': variable_states,
-            'data': data.to_list(),
+            'states': self.states,
+            'data': self.values.tolist(),
         }
 
-    def zipped(self):
-        """Return a dict with data, indexed by tuples."""
-        index = list(self.index)
-        return dict(zip(index, self._data.to_list()))
-
     @classmethod
-    def from_data(cls, df, cols=None, variable_states=None, complete_value=0):
+    def from_data(cls, df, cols=None, states=None, complete_value=0):
         """Create a full Factor from data (using Maximum Likelihood Estimation).
 
         Determine the empirical distribution by counting the occurrences of
@@ -476,22 +623,18 @@ class Factor(object):
         subset = df[cols]
         counts = subset.groupby(cols).size()
 
-        if variable_states is None:
-            # We'll need to try to determine variable_states from the jpt
-            variable_states = dict(
-                zip(counts.index.names, counts.index.levels)
-            )
+        if states is None:
+            # We'll need to try to determine states from the jpt
+            index = counts.index
+            states = dict(zip(index.names, index.levels))
 
         # Create a factor containing *all* combinations set to `complete_value`.
-        f2 = Factor(complete_value, variable_states)
+        f2 = Factor(complete_value, states)
 
         # By summing the Factor with the Series all combinations not in the
         # data are set to `complete_value`.
-        return Factor(f2 + counts)
+        total = f2.as_series() + counts
 
-    @classmethod
-    def from_dict(cls, d):
-        """Return a Factor initialized by its dict representation."""
-        return Factor(d['data'], d['variable_states'])
-
+        values = np.nan_to_num(total.values, nan=complete_value)
+        return Factor(values, states=states)
 

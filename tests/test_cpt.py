@@ -6,6 +6,7 @@ import logging
 import json
 
 import pandas as pd
+import numpy as np
 
 import thomas.core
 from thomas.core.factor import Factor
@@ -33,21 +34,62 @@ class TestCPT(unittest.TestCase):
         except Exception as e:
             self.fail('Creating an HTML representation raised an exception?')
 
-    def test_unstack(self):
-        """Test CPT.unstack()."""
+    def test_mul_cpt(self):
+        """Test CPT multiplication with another Factor/CPT."""
         CPTs = examples.get_student_CPTs()
-        G_ID = CPTs['G']
+        I = CPTs['I']
+        S_I = CPTs['S']
 
-        self.assertIsInstance(G_ID.unstack(), pd.DataFrame)
+        # Multiplying a CPT should yield a Factor
+        SI = S_I.mul(I)
+        self.assertIsInstance(SI, Factor)
 
-        conditioning = list(G_ID.unstack().index.names)
-        self.assertEqual(conditioning, ['I', 'D'])
+    def test_mul_scalar(self):
+        """Test CPT multiplication with a scalar."""
+        CPTs = examples.get_student_CPTs()
+        I = CPTs['I']
+        S_I = CPTs['S']
 
-        rowidx = list(G_ID.unstack('D').index.names)
-        colname = G_ID.unstack('D').columns.name
-        self.assertTrue('D' not in rowidx)
-        self.assertEqual(colname, 'D')
+        # Multiplying a CPT should yield a Factor
+        Sx3 = S_I.mul(3)
+        self.assertIsInstance(Sx3, Factor)
 
+    def test_div_cpt(self):
+        """Test CPT division."""
+        CPTs = examples.get_student_CPTs()
+        I = CPTs['I']
+        S_I = CPTs['S']
+
+        # Dividing a CPT should yield a Factor
+        SI = S_I.div(I)
+        self.assertIsInstance(SI, Factor)
+
+    def test_mul_div(self):
+        """Test division after multiplication for equality."""
+        CPTs = examples.get_student_CPTs()
+        I = CPTs['I']
+        S_I = CPTs['S']
+
+        # Multiplying a CPT should yield a Factor
+        result = S_I.mul(I).div(I)
+        self.assertIsInstance(result, Factor)
+        self.assertTrue(np.allclose(result.values, S_I.values))
+
+    # @unittest.skip('no more ....')
+    # def test_unstack(self):
+    #     """Test CPT.unstack()."""
+    #     CPTs = examples.get_student_CPTs()
+    #     G_ID = CPTs['G']
+    #
+    #     self.assertIsInstance(G_ID.unstack(), pd.DataFrame)
+    #
+    #     conditioning = list(G_ID.unstack().index.names)
+    #     self.assertEqual(conditioning, ['I', 'D'])
+    #
+    #     rowidx = list(G_ID.unstack('D').index.names)
+    #     colname = G_ID.unstack('D').columns.name
+    #     self.assertTrue('D' not in rowidx)
+    #     self.assertEqual(colname, 'D')
 
     def test_as_factor(self):
         """Test CPT.as_factor()."""

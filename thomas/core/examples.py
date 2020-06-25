@@ -36,20 +36,20 @@ def get_student_CPTs():
 
     P['I'] = CPT(
         [0.7, 0.3],
-        variable_states=subset(states, ['I']),
+        states=subset(states, ['I']),
         description='Intelligence'
     )
 
     P['S'] = CPT(
         [0.95, 0.05,
          0.20, 0.80],
-        variable_states=subset(states, ['I', 'S']),
+        states=subset(states, ['I', 'S']),
         description='SAT Score'
     )
 
     P['D'] = CPT(
         [0.6, 0.4],
-        variable_states=subset(states, ['D']),
+        states=subset(states, ['D']),
         description='Difficulty'
     )
 
@@ -58,7 +58,7 @@ def get_student_CPTs():
          0.05, 0.25, 0.70,
          0.90, 0.08, 0.02,
          0.50, 0.30, 0.20],
-        variable_states=subset(states, ['I', 'D', 'G']),
+        states=subset(states, ['I', 'D', 'G']),
         description='Grade'
     )
 
@@ -66,7 +66,7 @@ def get_student_CPTs():
         [0.10, 0.90,
          0.40, 0.60,
          0.99, 0.01],
-        variable_states=subset(states, ['G', 'L']),
+        states=subset(states, ['G', 'L']),
         description='Letter'
     )
 
@@ -222,21 +222,21 @@ def get_example17_2_factors():
     fH = Factor.from_dict({
         'type': 'Factor',
         'scope': ['H'],
-        'variable_states': {'H': ['F', 'T']},
+        'states': {'H': ['h0', 'h1']},
         'data': [0.25, 0.75]
      })
 
     fS_H = Factor.from_dict({
         'type': 'Factor',
         'scope': ['H', 'S'],
-        'variable_states': {'H': ['F', 'T'], 'S': ['F', 'T']},
+        'states': {'H': ['h0', 'h1'], 'S': ['s0', 's1']},
         'data': [0.75, 0.25, 0.84, 0.16]
     })
 
     fE_H = Factor.from_dict({
         'type': 'Factor',
         'scope': ['H', 'E'],
-        'variable_states': {'H': ['F', 'T'], 'E': ['F', 'T']},
+        'states': {'H': ['h0', 'h1'], 'E': ['e0', 'e1']},
         'data': [0.5, 0.5, 0.084, 0.916]
     })
 
@@ -320,7 +320,6 @@ def get_example17_3_network():
     )
 
     return bn
-
 
 def get_lungcancer_network():
     """Load 'lungcancer.oobn'."""

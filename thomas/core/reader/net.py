@@ -8,6 +8,7 @@ import lark
 
 from ..util import flatten
 
+from ..factor import Factor
 from ..cpt import CPT
 from .. import bayesiannetwork
 
@@ -222,11 +223,11 @@ def _create_structure(tree):
         for parent in node_parents:
             parent_states[parent] = tree['nodes'][parent]['states']
 
-        variable_states = {
+        states = {
             name: node_states
         }
 
-        variable_states.update(parent_states)
+        states.update(parent_states)
 
         # Get the data for the prior/conditional probability distribution.
         data = potential['data']
@@ -244,16 +245,16 @@ def _create_structure(tree):
             df = pd.DataFrame(data, index=index, columns=columns)
 
             cpt = CPT(
-                df.stack(),
-                conditioned_variables=[name],
+                Factor.from_series(df.stack()),
+                conditioned=[name],
             )
 
         # Else, it's a probability table
         else:
             cpt = CPT(
                 data,
-                conditioned_variables=[name],
-                variable_states=variable_states
+                conditioned=[name],
+                states=states
             )
 
         # Get the data for the dataframe

@@ -49,12 +49,8 @@ class Bag(ProbabilisticModel):
 
         This comprises the set of (unique) variables covered by the factors.
         """
-        scope = []
-
-        for f in factors:
-            scope += f.scope
-
-        return set(scope)
+        # One liner flattens the list of lists
+        return set([item for factor in factors for item in factor.scope])
 
     # --- properties ---
     @property
@@ -78,7 +74,9 @@ class Bag(ProbabilisticModel):
 
         # Initialize the list of factors and apply the evidence
         factors = list(self._factors)
-        factors = [f.keep_values(**evidence) for f in factors]
+
+        # factors = [f.keep_values(**evidence) for f in factors]
+        factors = [f.set_complement(0, **evidence) for f in factors]
 
         # ordering will contain a list of variables *not* in Q, i.e. the
         # remaining variables from the full distribution.
@@ -102,7 +100,7 @@ class Bag(ProbabilisticModel):
         if isinstance(result, Factor):
             try:
                 result = result.reorder_scope(Q)
-                result.sort_index()
+                # result.sort_index()
             except Exception as e:
                 log.error(f'Could not reorder scope: {e}')
                 log.error(result.scope)
@@ -145,11 +143,17 @@ class Bag(ProbabilisticModel):
 
         # If query values were specified we can extract them from the factor.
         if qv:
-            result = result.extract_values(**qv)
+            result = result.get(**qv)
 
         if isinstance(result, Factor):
-            result.sort_index()
-            return CPT(result, conditioned_variables=query_vars)
+            return CPT(
+                result.values,
+                states=result.states,
+                conditioned=query_vars
+            )
+
+        elif isinstance(result, np.ndarray) and len(result) == 1:
+            result = result[0]
 
         return result
 

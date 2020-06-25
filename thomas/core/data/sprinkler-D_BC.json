@@ -5,7 +5,7 @@
         "C",
         "D"
     ],
-    "variable_states": {
+    "states": {
         "B": [
             "b0",
             "b1"

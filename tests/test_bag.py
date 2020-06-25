@@ -93,8 +93,9 @@ class TestBag(unittest.TestCase):
         s0G_i0 = bag.compute_posterior(['G'], {'S': 's0'}, [], {'I':'i0'})
         self.assertEqual(len(s0G_i0), 3)
 
+    @unittest.skip('Not yet')
     def test_MAP(self):
-        """Test the BayesianNetwork.MAP() function."""
+        """Test the Bag.MAP() function."""
         factors = examples.get_student_CPTs()
         bag = Bag('Student', list(factors.values()))
 
@@ -109,7 +110,7 @@ class TestBag(unittest.TestCase):
         self.assertAlmostEqual(argmax_G[1], 0.362)
 
     def test_P(self):
-        """Test the function BayesianNetwork.P()."""
+        """Test the function Bag.P()."""
         factors = examples.get_student_CPTs()
         bag = Bag('Student', list(factors.values()))
 

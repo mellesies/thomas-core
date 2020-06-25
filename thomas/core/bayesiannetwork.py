@@ -270,7 +270,7 @@ class BayesianNetwork(ProbabilisticModel):
         return list(G_moral.edges)
 
     # -- parameter estimation
-    def EM_learning(self, data, max_iterations=1):
+    def EM_learning(self, data, max_iterations=1, notify=True):
         """Perform parameter learning.
         Sources:
             * https://www.cse.ust.hk/bnbook/pdf/l07.h.pdf
@@ -280,15 +280,36 @@ class BayesianNetwork(ProbabilisticModel):
         nodes_with_parents = self.nodes_with_parents
         nodes_without_parents = self.nodes_without_parents
 
+        # Create a dataset with unique rows (& counts) ...
+        overlapping_cols = list(set(data.columns).intersection(self.vars))
+        counts = counts = data.fillna('NaN')
+        counts = counts.groupby(overlapping_cols, observed=True).size()
+        counts.name = 'count'
+        counts = pd.DataFrame(counts)
+        counts = counts.reset_index()
+        counts = counts[counts['count'] > 0]
+        counts = counts.reset_index(drop=True)
+        counts = counts.replace('NaN', np.nan)
+
+        print(counts)
+
         for k in range(max_iterations):
             # dict of joint distributions, indexed by family index
             joints = {}
 
             # Iterate over the data: set a row as evidence and compute the
             # JPT for each family.
-            for _, row in data.iterrows():
+            for idx, row in counts.iterrows():
+
+                N = row.pop('count')
+                evidence = row.dropna().to_dict()
+
+                if (idx % 10) == 0:
+                    print(idx, end=', ')
+                    sys.stdout.flush()
+
                 self.reset_evidence()
-                self.junction_tree.set_evidence_hard(**row.dropna().to_dict())
+                self.junction_tree.set_evidence_hard(**evidence)
 
                 for node in nodes_with_parents:
                     jt_node = self.junction_tree.get_node_for_family(node.vars)
@@ -300,22 +321,32 @@ class BayesianNetwork(ProbabilisticModel):
             for node in nodes_with_parents:
                 jpt = joints[node].project(node.vars)
 
-                node.cpt = CPT(jpt / jpt.project(node.conditioning))
+                node.cpt = CPT(
+                    data=jpt / jpt.project(node.conditioning),
+                    conditioned=node.conditioned
+                )
 
             # Update JPTs for nodes *without* parents
             for node in nodes_without_parents:
                 for jpt in joints.values():
                     # Find a JPT that contains this node's RV
                     if node.vars.issubset(jpt.vars):
-                        node.cpt = CPT(jpt.project(node.vars).normalize())
+                        node.cpt = CPT(
+                            data=jpt.project(node.vars).normalize(),
+                            conditioned=node.conditioned
+                        )
 
                         # Break from the *inner* for loop
                         break
 
-            # FIXME: Not very efficient. I'd like to keep the structure and only
-            #   update the factors ...
+            # Since the JT is linked to the BN's nodes' CPTs, we'll need to
+            # invalidate the cache to recompute the probabilities.
+            self.reset_evidence()
             self.jt.invalidate_caches()
 
+            # Update the widget after each iteration
+            if self.__widget and notify:
+                self.__widget.update()
 
     def ML_estimation(self, df):
         """Perform Maximum Likelihood estimation of the BN parameters.
@@ -333,6 +364,7 @@ class BayesianNetwork(ProbabilisticModel):
         jpt = JPT.from_data(df, cols=self.scope)
 
         for name, node in self.nodes.items():
+            # print(name, node, node.cpt)
             cpt = jpt.compute_dist(node.conditioned, node.conditioning)
             node.cpt = cpt
 
@@ -475,7 +507,7 @@ class BayesianNetwork(ProbabilisticModel):
         # FIXME: not sure what I think of the fact that we return scalars
         #        if the result doesn't have a MultiIndex ...
         if isinstance(result, Factor):
-            return CPT(result, conditioned_variables=query_vars)
+            return CPT(result, conditioned=query_vars)
 
         return result
 
@@ -797,7 +829,7 @@ class DiscreteNetworkNode(Node):
     def parents(self):
         if self._cpt:
             parents = dict([(p.RV, p) for p in self._parents])
-            sort_order = list(self._cpt._data.index.names[:-1])
+            sort_order = list(self._cpt.scope[:-1])
 
             return [parents[p] for p in sort_order]
 
@@ -825,7 +857,7 @@ class DiscreteNetworkNode(Node):
 
             vs[self.RV] = self.states
 
-            self._cpt = CPT(1, variable_states=vs).normalize()
+            self._cpt = CPT(1, states=vs).normalize()
 
         return self._cpt
 
@@ -859,7 +891,7 @@ class DiscreteNetworkNode(Node):
             raise Exception(e)
 
         if not self.states:
-            self.states = cpt.variable_states[self.RV]
+            self.states = cpt.states[self.RV]
 
         # Looking good :-)
         self._cpt = cpt
@@ -891,7 +923,7 @@ class DiscreteNetworkNode(Node):
             states[p.name] = p.states
 
         # Assume a uniform distribution
-        self.cpt = CPT(1, variable_states=states).normalize()
+        self.cpt = CPT(1, states=states).normalize()
 
     def add_parent(self, parent, **kwargs):
         """Add a parent to the Node.

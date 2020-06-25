@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """JPT: the Joint Probability Table"""
 
+import numpy as np
+
 from .base import ProbabilisticModel
 from .factor import Factor
 from .cpt import CPT
@@ -13,12 +15,11 @@ class JPT(Factor, ProbabilisticModel):
 
     @property
     def display_name(self):
-        names = [n for n in self._data.index.names if n is not None]
-        names = ','.join(names)
+        names = ','.join(self.scope)
         return f'JPT({names})'
 
     @classmethod
-    def from_data(cls, df, cols=None, variable_states=None, complete_value=0):
+    def from_data(cls, df, cols=None, states=None, complete_value=0):
         """Create a full JPT from data (using Maximum Likelihood Estimation).
 
         Determine the empirical distribution by ..
@@ -32,8 +33,8 @@ class JPT(Factor, ProbabilisticModel):
             df (pandas.DataFrame): data
             cols (list): columns in the data frame to use. If `None`, all
                 columns are used.
-            variable_states (dict): list of allowed states for each random
-                variable, indexed by name. If variable_states is None, `jpt`
+            states (dict): list of allowed states for each random
+                variable, indexed by name. If states is None, `jpt`
                 should be a pandas.Series with a proper Index/MultiIndex.
             complete_value (int): Base (count) value to use for combinations of
                 variable states in the dataset.
@@ -41,8 +42,8 @@ class JPT(Factor, ProbabilisticModel):
         Return:
             JPT (normalized)
         """
-        factor = Factor.from_data(df, cols, variable_states, complete_value)
-        return JPT(factor.normalize())
+        factor = Factor.from_data(df, cols, states, complete_value)
+        return JPT(factor.normalize().values, states=factor.states)
 
     def compute_dist(self, qd, ed=None):
         """Compute a (conditional) distribution.
@@ -84,25 +85,12 @@ class JPT(Factor, ProbabilisticModel):
 
         # If query values were specified we can extract them from the factor.
         if qv:
-            values = list(qv.values())
-
-            if result.width == 1:
-                result = result[values[0]]
-
-            elif result.width > 1:
-                indices = []
-
-                for level, value in qv.items():
-                    idx = result._data.index.get_level_values(level) == value
-                    indices.append(list(idx))
-
-                zipped = list(zip(*indices))
-                idx = [all(x) for x in zipped]
-                result = Factor(result._data[idx])
-
+            result = result.get(**qv)
 
         if isinstance(result, Factor):
-            result.sort_index()
-            return CPT(result, conditioned_variables=query_vars)
+            return CPT(result.values, states=result.states, conditioned=query_vars)
+
+        elif isinstance(result, np.ndarray) and len(result) == 1:
+            result = result[0]
 
         return result

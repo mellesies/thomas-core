@@ -5,6 +5,8 @@ import logging
 
 import json
 
+import pandas as pd
+
 import thomas.core
 from thomas.core.cpt import CPT
 from thomas.core.jpt import JPT
@@ -33,6 +35,24 @@ class TestJPT(unittest.TestCase):
         self.assertEqual(A_B.scope, ['B', 'A'])
         self.assertAlmostEqual(A_B['b1', 'a1'], 0.286, places=3)
 
+    def test_from_data(self):
+        """Test creating an (empirical) distribution from data."""
+        filename = thomas.core.get_pkg_data('dataset_17_2.csv')
+        df = pd.read_csv(filename, sep=';')
+
+        scope = ['H', 'S', 'E']
+        jpt = JPT.from_data(df, cols=scope)
+
+        self.assertEqual(jpt.sum(), 1)
+        self.assertEqual(jpt['T', 'T', 'T'], 2/16)
+        self.assertEqual(jpt['T', 'T', 'F'], 0/16)
+        self.assertEqual(jpt['T', 'F', 'T'], 9/16)
+        self.assertEqual(jpt['T', 'F', 'F'], 1/16)
+        self.assertEqual(jpt['F', 'T', 'T'], 0/16)
+        self.assertEqual(jpt['F', 'T', 'F'], 1/16)
+        self.assertEqual(jpt['F', 'F', 'T'], 2/16)
+        self.assertEqual(jpt['F', 'F', 'F'], 1/16)
+
     def test_sprinkler_jpt(self):
         """Test the JPT for the Sprinkler network."""
         jpt = examples.get_sprinkler_jpt()
@@ -57,13 +77,8 @@ class TestJPT(unittest.TestCase):
         with open(filename) as fp:
             data = json.load(fp)
 
-        # We need to round the numbers, cause Pandas is picky ;-)
         D_BC_known = CPT.from_dict(data)
-        D_BC_known = D_BC_known.as_series().round(3)
-
         D_BC_computed = jpt.compute_posterior(['D'], {}, ['B', 'C'], {})
-        D_BC_computed = D_BC_computed.as_series().round(3)
-
         self.assertTrue(D_BC_computed.equals(D_BC_known))
 
         a0_B = jpt.compute_posterior([], {'A': 'a0'}, ['B'], {})

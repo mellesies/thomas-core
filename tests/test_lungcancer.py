@@ -13,7 +13,6 @@ from thomas.core.reader import oobn, net
 
 log = logging.getLogger(__name__)
 
-# @unittest.skip
 class TestLungCancerNetwork(unittest.TestCase):
 
     def setUp(self):

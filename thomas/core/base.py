@@ -100,15 +100,15 @@ class ProbabilisticModel(object):
         qd, qv, gd, gv = self.parse_query_string(query_string)
         return self.compute_posterior(qd, qv, gd, gv)
 
-    def MAP(self, query_dist, evidence_values, include_probability=True):
-        """Perform a Maximum a Posteriori query."""
-        d = self.compute_posterior(query_dist, {}, [], evidence_values)
-        evidence_vars = [e for  e in evidence_values.keys() if e in d.scope]
-
-        d = d.droplevel(evidence_vars)
-
-        if include_probability:
-            return d.idxmax(), d.max()
-
-        return d.idxmax()
+    # def MAP(self, query_dist, evidence_values, include_probability=True):
+    #     """Perform a Maximum a Posteriori query."""
+    #     d = self.compute_posterior(query_dist, {}, [], evidence_values)
+    #     evidence_vars = [e for  e in evidence_values.keys() if e in d.scope]
+    #
+    #     d = d.droplevel(evidence_vars)
+    #
+    #     if include_probability:
+    #         return d.idxmax(), d.max()
+    #
+    #     return d.idxmax()
 

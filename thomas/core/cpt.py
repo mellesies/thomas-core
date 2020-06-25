@@ -28,31 +28,31 @@ class CPT(Factor):
       - the conditioning variable states make up the rows.
     """
 
-    def __init__(self, data, conditioned_variables=None, variable_states=None, description=''):
+    def __init__(self, data, states=None, conditioned=None, description=''):
         """Initialize a new CPT.
 
         Args:
             data (list, pandas.Series, Factor): array of values.
-            conditioned_variables (list): list of conditioned variables
-            variable_states (dict): list of allowed states for each random
-                variable, indexed by name. If variable_states is None, `data`
+            conditioned (list): list of conditioned variables
+            states (dict): list of allowed states for each random
+                variable, indexed by name. If states is None, `data`
                 should be a pandas.Series (or Factor) with a proper
                 Index/MultiIndex.
             description (str): An optional description of the random variables'
                 meaning.
         """
         if isinstance(data, Factor):
-            super().__init__(data._data, data._variable_states)
+            super().__init__(data.values, data.states)
         else:
-            super().__init__(data, variable_states)
+            super().__init__(data, states)
 
         # Each name in the index corresponds to a random variable. We'll assume
         # the last variable of the index is being conditioned if not explicitly
         # specified.
-        if conditioned_variables is None:
+        if conditioned is None:
             conditioned = [self.scope[-1]]
         else:
-            conditioned = conditioned_variables
+            conditioned = list(conditioned)
 
         # The remaining variables must be the conditioning variables
         conditioning = [i for i in self.scope if i not in conditioned]
@@ -60,10 +60,7 @@ class CPT(Factor):
         # Make sure the conditioned variable appears rightmost in the index.
         if self.width > 1:
             order = conditioning + conditioned
-            self._data = self._data.reorder_levels(order)
-
-        # Sort the index
-        self._data = self._data.sort_index()
+            self.reorder_scope(order, inplace=True)
 
         # Set remaining attributes
         self.conditioned = conditioned
@@ -97,7 +94,7 @@ class CPT(Factor):
 
     def _repr_html_(self):
         """Return an HTML representation of this CPT."""
-        data = self._data
+        data = self.as_series()
 
         if self.conditioning:
             html = data.unstack(self.conditioned)._repr_html_()
@@ -115,31 +112,27 @@ class CPT(Factor):
             </div>
         """
 
-    def normalize(self):
-        """Normalize the factor so the sum of all values is 1."""
-        if len(self.conditioning) >= 1:
-            return self.__class__(self._data / self._data.unstack().sum(axis=1))
-
-        return self.__class__(self._data / self._data.sum())
-
-    def unstack(self, level=None, *args, **kwargs):
-        if level is None:
-            level = self.conditioned
-
-        return super().unstack(level, *args, **kwargs)
-
-    # melle: This wasn't used in any of the real code, only in the notebooks
-    #        as example.
-    # def dot(self, other):
-    #     if isinstance(other, CPT):
-    #         return self._data.dot(other.unstack())
-    #
-    #     # Hail mary ... ;)
-    #     return self._data.dot(other)
+    def copy(self):
+        """Return a copy of this CPT."""
+        return CPT(
+            self.values,
+            self.states,
+            self.conditioned,
+            self.description
+        )
 
     def as_factor(self):
-        """Return the Factor representation of this CPT."""
-        return Factor(self._data)
+        """Return a copy this CPT as a Factor."""
+        return Factor(self.values, self.states)
+
+    @classmethod
+    def from_factor(cls, factor):
+        """Create a CPT from a Factor.
+
+        This is equivalent to calling CPT(factor) and is provided merely for
+        consistency.
+        """
+        return cls(factor)
 
     def as_dict(self):
         """Return a dict representation of this CPT."""
@@ -160,7 +153,7 @@ class CPT(Factor):
 
         return CPT(
             factor,
-            conditioned_variables=d.get('conditioned'),
+            conditioned=d.get('conditioned'),
             description=d.get('description')
         )
 

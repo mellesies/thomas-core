@@ -25,7 +25,7 @@
                     "T",
                     "TNM"
                 ],
-                "variable_states": {
+                "states": {
                     "M": [
                         "0",
                         "1A",
@@ -770,7 +770,7 @@
                     "cM",
                     "cTNM"
                 ],
-                "variable_states": {
+                "states": {
                     "edition": [
                         "TNM 5",
                         "TNM 6",
@@ -4303,7 +4303,7 @@
                 "scope": [
                     "T"
                 ],
-                "variable_states": {
+                "states": {
                     "T": [
                         "1A",
                         "1B",
@@ -4351,7 +4351,7 @@
                     "T",
                     "M"
                 ],
-                "variable_states": {
+                "states": {
                     "N": [
                         "0",
                         "1",
@@ -4490,7 +4490,7 @@
                     "T",
                     "N"
                 ],
-                "variable_states": {
+                "states": {
                     "T": [
                         "1A",
                         "1B",
@@ -4571,7 +4571,7 @@
                     "T",
                     "death"
                 ],
-                "variable_states": {
+                "states": {
                     "M": [
                         "0",
                         "1A",
@@ -5137,7 +5137,7 @@
                 "scope": [
                     "edition"
                 ],
-                "variable_states": {
+                "states": {
                     "edition": [
                         "TNM 5",
                         "TNM 6",
@@ -5178,7 +5178,7 @@
                     "M",
                     "cM"
                 ],
-                "variable_states": {
+                "states": {
                     "edition": [
                         "TNM 5",
                         "TNM 6",
@@ -5266,7 +5266,7 @@
                     "N",
                     "cN"
                 ],
-                "variable_states": {
+                "states": {
                     "edition": [
                         "TNM 5",
                         "TNM 6",
@@ -5372,7 +5372,7 @@
                     "T",
                     "cT"
                 ],
-                "variable_states": {
+                "states": {
                     "edition": [
                         "TNM 5",
                         "TNM 6",

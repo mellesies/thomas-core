@@ -16,7 +16,7 @@
                 "scope": [
                     "I"
                 ],
-                "variable_states": {
+                "states": {
                     "I": [
                         "i0",
                         "i1"
@@ -52,7 +52,7 @@
                     "I",
                     "S"
                 ],
-                "variable_states": {
+                "states": {
                     "I": [
                         "i0",
                         "i1"
@@ -95,7 +95,7 @@
                 "scope": [
                     "D"
                 ],
-                "variable_states": {
+                "states": {
                     "D": [
                         "d0",
                         "d1"
@@ -133,7 +133,7 @@
                     "D",
                     "G"
                 ],
-                "variable_states": {
+                "states": {
                     "I": [
                         "i0",
                         "i1"
@@ -191,7 +191,7 @@
                     "G",
                     "L"
                 ],
-                "variable_states": {
+                "states": {
                     "G": [
                         "g1",
                         "g2",

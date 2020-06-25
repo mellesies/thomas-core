@@ -139,6 +139,7 @@ class JunctionTree(object):
         # Each cluster is added to a TreeNode by reference, meaning that any
         # changes to `node.cluster` are also reflected in `self.clusters`.
         for c in self.clusters:
+            # Create a TreeNode and add it to self.nodes
             self.add_node(c)
 
         # The nodes contain a variable `cluster` that corresponds to one of the
@@ -162,12 +163,35 @@ class JunctionTree(object):
 
                 # According to the running intersection property, there should
                 # be a node/cluster that contains the above intersection.
+                options = []
+
                 for node_j in remaining_nodes:
                    C_j = node_j.cluster
 
                    if intersection.issubset(C_j):
-                       self.add_edge(node_i, node_j)
-                       break
+                        options.append(node_j)
+
+                       # self.add_edge(node_i, node_j)
+                       # break from the for loop
+                       # break
+
+
+
+                if len(options) > 1:
+                    complexities = []
+
+                    for n in options:
+                        CPTs = [self._bn[RV].cpt for RV in n.cluster]
+                        reduced = reduce(mul, CPTs)
+                        complexities.append(len(reduced))
+                    # sizes = [len(n.joint) for n in options]
+                    # print(sizes)
+                    # print(options)
+                    option_idx = complexities.index(min(complexities))
+                    self.add_edge(node_i, options[option_idx])
+                else:
+
+                    self.add_edge(node_i, options[0])
 
     def _assign_factors(self, bn):
         """Assign the BNs factors (nodes) to one of the clusters."""
@@ -181,12 +205,11 @@ class JunctionTree(object):
             for jt_node in self.nodes.values():
                 # node.vars returns all variables in the node's factor
                 if bn_node.vars.issubset(jt_node.cluster):
-                    # jt_node.add_factor(bn_node.cpt)
                     jt_node.add_bn_node(bn_node)
                     self.set_node_for_RV(RV, jt_node)
 
                     states = {RV: bn_node.states}
-                    indicator = Factor(1, variable_states=states)
+                    indicator = Factor(1, states=states)
                     self.add_indicator(indicator, jt_node)
                     break
 
@@ -196,8 +219,13 @@ class JunctionTree(object):
             for missing in (jt_node.cluster - jt_node.vars):
                 bn_node = bn.nodes[missing]
                 states = {bn_node.RV: bn_node.states}
-                trivial = Factor(1, variable_states=states)
+                trivial = Factor(1, states=states)
                 jt_node.add_factor(trivial)
+
+    @property
+    def width(self):
+        """Return the width of the JT."""
+        return max([len(c) for c in self.clusters]) -1
 
     def ensure_cluster(self, cluster):
         """Ensure cluster is contained in one of the nodes."""
@@ -239,7 +267,7 @@ class JunctionTree(object):
                 # path includes the target node, which already has `var`
                 # in scope
                 if var not in tree_node.cluster:
-                    f = Factor(1, variable_states={var: states})
+                    f = Factor(1, states={var: states})
                     tree_node.add_factor(f)
 
     def get_node_for_RV(self, RV):
@@ -289,7 +317,7 @@ class JunctionTree(object):
         """Add an indicator for a random variable to a node."""
         assert isinstance(node, TreeNode), "node should be a TreeNode!"
 
-        RV = list(factor.variable_states.keys()).pop()
+        RV = list(factor.states.keys()).pop()
         self.indicators[RV] = factor
         node.indicators.append(factor)
 
@@ -300,7 +328,7 @@ class JunctionTree(object):
 
         for RV in RVs:
             indicator = self.indicators[RV]
-            indicator._data[:] = 1.0
+            indicator.values[:] = 1.0
 
         self.invalidate_caches()
 
@@ -329,17 +357,17 @@ class JunctionTree(object):
         for RV, state in kwargs.items():
             indicator = self.indicators[RV]
 
-            if state not in indicator.index.get_level_values(RV):
-                # state = state.replace(f'{RV}.', '')
+            # if state not in indicator.index.get_level_values(RV):
+            if state not in indicator.states[RV]:
                 raise error.InvalidStateError(RV, state, indicator)
 
             # FIXME: it's not pretty to access Factor._data like this!
-            data = indicator._data
-            idx = data.index.get_level_values(RV) != state
-            data[idx] = 0.0
+            # data = indicator._data
 
-            idx = data.index.get_level_values(RV) == state
-            data[idx] = 1.0
+            # data[data.index.get_level_values(RV) != state] = 0.0
+            # data[data.index.get_level_values(RV) == state] = 1.0
+            indicator.set(1, **{RV: state}, inplace=True)
+            indicator.set_complement(0, **{RV: state}, inplace=True)
 
         self.invalidate_caches()
 
@@ -458,14 +486,17 @@ class TreeNode(object):
         self.__factors = []
 
         self._edges = [] # list: TreeEdge
-        self._factors_multiplied = None   # cache
+
+        # cache
+        self._cache = None
+        self._factors_multiplied = None
+        self._factor_index_cache = None
 
         # The cache is indexed by upstream node.
         self.invalidate_cache() # sets self._cache = {}
 
     def __repr__(self):
         """x.__repr__() <==> repr(x)"""
-        # return self.label
         return f"TreeNode({self.cluster})"
 
     @property
@@ -475,11 +506,13 @@ class TreeNode(object):
 
     @property
     def factors(self):
+        """All factors, including indicators."""
         CPTs = [node.cpt for node in self._bn_nodes.values()]
         return CPTs + self.__factors + self.indicators
 
     @property
     def vars(self):
+        """Scope of this TreeNode as a set."""
         v = [f.vars for f in self.factors]
         if v:
             return set.union(*v)
@@ -487,15 +520,28 @@ class TreeNode(object):
 
     @property
     def joint(self):
+        """Return the joint distribution over this TreeNode's cluster."""
         return self.pull().normalize()
 
     @property
     def factors_multiplied(self):
-        """Compute the joint of the Node's factors."""
+        """Compute the joint of the TreeNode's factors."""
+
+        # _factor_index_cache is a cache of the index for
+        # if self._factor_index_cache is None:
+        #     states = {}
+        #
+        #     for f in self.factors:
+        #         states.update(f.states)
+        #
+        #     self._variable_state_cache = states
+        #     self._factor_index_cache = Factor._index_from_states(states)
+
         if self._factors_multiplied is None:
-            # Per documentation for reduce: "If initializer is not given and
-            # sequence contains only one item, the first item is returned."
-            self._factors_multiplied = reduce(mul, self.factors)
+            # print('I should happen only once!')
+            # full = Factor(1, idx=self._factor_index_cache)
+            factors = [*[n.cpt for n in self._bn_nodes.values()]]
+            self._factors_multiplied = reduce(mul, factors)
 
         return self._factors_multiplied
 
@@ -504,44 +550,31 @@ class TreeNode(object):
             self._edges.append(edge)
 
     def add_factor(self, factor):
-        """Add a factor to this TreeNode."""
+        """Add a (trivial) factor to this TreeNode."""
         self.__factors.append(factor)
-        self._factors_multiplied = None
 
-        # This can do harm
         for var in factor.vars:
             self.cluster.add(var)
 
         for edge in self._edges:
             edge.recompute_separator()
 
+        self._factors_multiplied = None
+        self._factor_index_cache = None
+
     def add_bn_node(self, node):
         """Add a Bayesian Network node."""
         self._bn_nodes[node.RV] = node
 
     def invalidate_cache(self):
-        """Invalidate the cache.
-
-        This comprises the message cache and the joint distribution for the
-        cluster with indicators.
-        """
+        """Invalidate the message cache."""
         self._cache = {}
-        self._factors_multiplied = None
 
     def get_downstream_edges(self, upstream=None):
         return [e for e in self._edges if e is not upstream]
 
     def get_all_downstream_nodes(self, upstream):
         edges = self.get_downstream_edges(upstream)
-
-        # if upstream is None:
-        #     downstream = {}
-        #
-        #     # edges is a list: TreeEdge
-        #     for e in edges:
-        #         downstream[e] = e.get_neighbor(self).get_all_downstream_nodes(e)
-        #
-        #     return downstream
 
         downstream = []
 
@@ -562,8 +595,11 @@ class TreeNode(object):
 
         :return: factor.Factor
         """
+        # mulf = lambda x, y: mul(x, y, False)
+
         downstream_edges = self.get_downstream_edges(upstream)
         result = self.factors_multiplied
+        result = reduce(mul, [result, *self.indicators])
 
         if downstream_edges:
             downstream_results = []
@@ -575,6 +611,7 @@ class TreeNode(object):
 
                 downstream_results.append(self._cache[e])
 
+            # result = reduce(mul, downstream_results + [result])
             result = reduce(mul, downstream_results + [result])
 
         if upstream:

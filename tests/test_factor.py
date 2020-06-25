@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import pandas as pd
 
+import thomas
 from thomas.core.factor import Factor, mul
 from thomas.core import examples
 from thomas.core import error
@@ -29,7 +30,7 @@ class TestFactor(unittest.TestCase):
             {'A': ['a1', 'a0']}
         )
 
-        self.assertEqual(repr(fA), 'factor(A)\nA\na1    0.6\na0    0.4\ndtype: float64')
+        self.assertEqual(repr(fA), 'factor(A)\nA \na1    0.6\na0    0.4\ndtype: float64')
 
     def test_add(self):
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
@@ -39,9 +40,24 @@ class TestFactor(unittest.TestCase):
 
         self.assertTrue(isinstance(f2, Factor))
 
+        # Adding int
+        self.assertEqual((fA + 1)['a1'], 1.6)
+        self.assertEqual((fA + 1)['a0'], 1.4)
+
+        # Adding float
+        self.assertEqual((fA + 1.0)['a1'], 1.6)
+        self.assertEqual((fA + 1.0)['a0'], 1.4)
+
+        # Adding Factor
+        self.assertEqual((fA + fB_A)['a1', 'b1'], 0.8)
+        self.assertEqual((fA + fB_A)['a1', 'b0'], 1.4)
+        self.assertEqual((fA + fB_A)['a0', 'b1'], 1.15)
+        self.assertEqual((fA + fB_A)['a0', 'b0'], 0.65)
+
         with self.assertRaises(Exception):
             fA.add('noooooo')
 
+    @unittest.skip('deprecate?')
     def test_extract_values(self):
         """Test factor.extract_values()."""
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
@@ -55,8 +71,7 @@ class TestFactor(unittest.TestCase):
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
 
         # int * int
-        nine = mul(3, 3)
-        self.assertEqual(nine, 9)
+        self.assertEqual(mul(3, 3), 9)
 
         # int
         fA2 = mul(fA, 2)
@@ -76,18 +91,18 @@ class TestFactor(unittest.TestCase):
         self.assertEqual(fAB.scope, ['A', 'B'])
 
         # Factors * Series
-        fAB = mul(fA, fB_A.as_series())
-        self.assertTrue(isinstance(fAB, Factor))
-        self.assertEqual(fAB.scope, ['A', 'B'])
+        # fAB = mul(fA, fB_A.as_series())
+        # self.assertTrue(isinstance(fAB, Factor))
+        # self.assertEqual(fAB.scope, ['A', 'B'])
 
         # Series * Factor
-        fAB = mul(fA.as_series(), fB_A)
-        self.assertTrue(isinstance(fAB, Factor))
-        self.assertEqual(fAB.scope, ['A', 'B'])
+        # fAB = mul(fA.as_series(), fB_A)
+        # self.assertTrue(isinstance(fAB, Factor))
+        # self.assertEqual(fAB.scope, ['A', 'B'])
 
         # Factors with single entries
-        fA_sq = fA.keep_values(A='a1') * fA.keep_values(A='a1')
-        self.assertEqual(fA_sq['a1'], 0.36)
+        # fA_sq = fA.keep_values(A='a1') * fA.keep_values(A='a1')
+        # self.assertEqual(fA_sq['a1'], 0.36)
 
     def test_factor_mul(self):
         """Test factor.Factor.mul()."""
@@ -99,15 +114,14 @@ class TestFactor(unittest.TestCase):
         # Scope of multiplied result should be {H, S, E}
         self.assertEqual((fE_H * fS_H).vars, {'H', 'S', 'E'})
 
-
     def test_getitem(self):
         """Test casting to Factor when accessing Factor by index."""
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
         fAB = fA * fB_A
-        self.assertTrue(isinstance(fAB['a0'], Factor))
+        self.assertTrue(isinstance(fAB['a0'], np.ndarray))
 
     def test_state_order(self):
-        """Test that a Factor's (Multi)Index keeps its states in order.
+        """Test that a Factor keeps its states in order and/or its index correct.
 
             Regression test for GitHub issue #1.
         """
@@ -148,6 +162,7 @@ class TestFactor(unittest.TestCase):
 
         self.assertAlmostEquals(fAB.sum(), 1, places=8)
 
+    @unittest.skip('deprecate?')
     def test_overlaps_with(self):
         """Test factor.overlaps_with()."""
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
@@ -181,11 +196,10 @@ class TestFactor(unittest.TestCase):
         # a *joint* distribution.
         fAB = fA * fB_A
 
-        # By summing out A, we'll get the prior over B
         total = fAB.sum_out(['A', 'B'])
 
         # Make sure we did this right :-)
-        self.assertAlmostEquals(total, 1.00, places=2)
+        self.assertAlmostEquals(total.values, 1.00, places=2)
         self.assertTrue(fA.sum_out([]).equals(fA))
 
     def test_project(self):
@@ -201,6 +215,17 @@ class TestFactor(unittest.TestCase):
 
         self.assertTrue(fA.project('A').equals(fA))
 
+    def test_from_data(self):
+        """Test creating an (empirical) distribution from data."""
+        filename = thomas.core.get_pkg_data('dataset_17_2.csv')
+        df = pd.read_csv(filename, sep=';')
+
+        scope = ['H', 'S', 'E']
+        factor = Factor.from_data(df, cols=scope)
+
+        self.assertEqual(set(factor.scope), set(scope))
+        self.assertEqual(factor.sum(), 16)
+
     def test_serialization_simple(self):
         """Test the JSON serialization."""
         [fA, fB_A, fC_A, fD_BC, fE_C] = examples.get_sprinkler_factors()
@@ -208,14 +233,14 @@ class TestFactor(unittest.TestCase):
         dict_repr = fA.as_dict()
 
         # Make sure the expected keys exist
-        for key in ['type', 'scope', 'variable_states', 'data']:
+        for key in ['type', 'scope', 'states', 'data']:
             self.assertTrue(key in dict_repr)
 
         self.assertTrue(dict_repr['type'] == 'Factor')
 
         fA2 = Factor.from_dict(dict_repr)
-        self.assertEquals(fA.scope, fA2.scope)
-        self.assertEquals(fA.variable_states, fA2.variable_states)
+        self.assertEquals(fA.variables, fA2.variables)
+        self.assertEquals(fA.states, fA2.states)
 
     def test_serialization_complex(self):
         """Test the JSON serialization."""
@@ -224,14 +249,14 @@ class TestFactor(unittest.TestCase):
         dict_repr = fB_A.as_dict()
 
         # Make sure the expected keys exist
-        for key in ['type', 'scope', 'variable_states', 'data']:
+        for key in ['type', 'scope', 'states', 'data']:
             self.assertTrue(key in dict_repr)
 
         self.assertTrue(dict_repr['type'] == 'Factor')
 
         fB_A2 = Factor.from_dict(dict_repr)
         self.assertEquals(fB_A.scope, fB_A2.scope)
-        self.assertEquals(fB_A.variable_states, fB_A2.variable_states)
+        self.assertEquals(fB_A.states, fB_A2.states)
 
     def test_values(self):
         """Test cast to np.array."""
@@ -249,14 +274,15 @@ class TestFactor(unittest.TestCase):
         with self.assertRaises(error.NotInScopeError) as context:
             fB_A.sum_out('C')
 
-        with self.assertRaises(error.InvalidStateError) as context:
-            fB_A.keep_values(A='a2')
+        # with self.assertRaises(error.InvalidStateError) as context:
+        #     fB_A.keep_values(A='a2')
 
-    def test_unstack(self):
-        """Test factor.unstack()."""
-        fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
-
-        unstacked = fB_A.unstack()
-
-        self.assertIsInstance(unstacked, pd.DataFrame)
-        self.assertEqual(unstacked.shape, (2, 2))
+    # @unittest.skip('deprecate?')
+    # def test_unstack(self):
+    #     """Test factor.unstack()."""
+    #     fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
+    #
+    #     unstacked = fB_A.unstack()
+    #
+    #     self.assertIsInstance(unstacked, pd.DataFrame)
+    #     self.assertEqual(unstacked.shape, (2, 2))

@@ -9,6 +9,7 @@ import json
 from tempfile import gettempdir
 
 import pandas as pd
+import numpy as np
 
 import thomas.core
 from thomas.core.cpt import CPT
@@ -17,7 +18,6 @@ from thomas.core import examples
 
 
 log = logging.getLogger(__name__)
-
 
 class TestBayesianNetwork(unittest.TestCase):
 
@@ -65,7 +65,7 @@ class TestBayesianNetwork(unittest.TestCase):
             node.cpt = 1
 
         with self.assertRaises(Exception):
-            node.cpt = CPT(cpts['G']._data, conditioned_variables=['I','D'])
+            node.cpt = CPT(cpts['G'].as_factor(), conditioned=['I','D'])
 
         with self.assertRaises(Exception):
             node.cpt = CPT(cpts['G'])
@@ -273,7 +273,7 @@ class TestBayesianNetwork(unittest.TestCase):
         self.assertAlmostEqual(I_D.sum(), 2, places=3)
 
         # I and D are independent
-        self.assertTrue(I_D['d0'].equals(I_D['d1']))
+        self.assertTrue(np.allclose(I_D['d0'], I_D['d1']))
 
         # P(D,S), cannot be computed with the default JT
         DS = self.Gs.compute_posterior(['D', 'S'], {}, [], {})
@@ -290,9 +290,7 @@ class TestBayesianNetwork(unittest.TestCase):
             use_VE=True
         )
 
-        d1 = IS1._data.round(3)
-        d2 = IS2._data.round(3)
-        self.assertTrue(d1.equals(d2))
+        self.assertTrue(IS1.equals(IS2))
 
     def test_ML_estimation(self):
         """Test ML estimation using a simple dataset."""
@@ -350,7 +348,6 @@ class TestBayesianNetwork(unittest.TestCase):
         # Clean up
         os.remove(tmpfile)
 
-    @unittest.skip
     def test_elimination_order_importance(self):
         self.Gs.reset_evidence()
 
