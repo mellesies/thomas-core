@@ -552,9 +552,14 @@ class Factor(object):
         if not inplace:
             return factor
 
-    # def zipped(self):
-    #     """Return a dict with data, indexed by tuples."""
-    #     return dict(zip(self._get_index_tuples(), self.values))
+    def zipped(self):
+        """Return a dict with data, indexed by tuples."""
+        tuples = self._get_index_tuples()
+
+        if self.width == 1:
+            tuples = [t[0] for t in tuples]
+
+        return dict(zip(tuples, self.values))
 
     @classmethod
     def from_series(cls, series):
