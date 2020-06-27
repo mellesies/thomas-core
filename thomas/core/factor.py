@@ -32,7 +32,6 @@ def isiterable(obj):
     else:
         return True
 
-
 def mul(x1, x2):
     """Multiply two Factors with each other.
 
@@ -51,7 +50,6 @@ def mul(x1, x2):
     #     result = result.reorder_scope()
 
     return result
-
 
 # ------------------------------------------------------------------------------
 # FactorIndex
@@ -129,7 +127,9 @@ class Factor(object):
     def __repr__(self):
         """repr(f) <==> f.__repr__()"""
         if self.states:
-            return f'{self.display_name}\n{repr(self.as_series())}'
+            with pd.option_context('precision', 3):
+                s = f'{self.display_name}\n{repr(self.as_series())}'
+            return s
 
         return f'{self.display_name}: {self.values:.2}'
 
@@ -564,14 +564,21 @@ class Factor(object):
     @classmethod
     def from_series(cls, series):
         """Create a Factor from a (properly indexed) pandas.Series."""
-        idx = series.index
+        states = cls.index_to_states(series.index)
 
-        if isinstance(idx, pd.MultiIndex):
-            states = {i.name: list(i) for i in idx.levels}
+        # Sanity check
+        full_idx = cls.states_to_index(states)
+        if len(full_idx) != len(series):
+            # Create a Factor with all zeros and update it with the values of
+            # series.
+            factor = Factor(0, states)
+            for idx in factor._get_index_tuples():
+                factor[idx] = series.get(idx, 0)
+
         else:
-            states = {idx.name: list(idx)}
+            factor = Factor(series.values, states)
 
-        return Factor(series.values, states)
+        return factor
 
     def as_series(self):
         """Return a pandas.Series."""
@@ -581,6 +588,30 @@ class Factor(object):
         )
 
         return pd.Series(self.values.reshape(-1), index=idx)
+
+    @staticmethod
+    def index_to_states(idx):
+        """Create a state dict from a pandas.Index or MultiIndex."""
+        if isinstance(idx, pd.MultiIndex):
+            states = {i.name: list(i) for i in idx.levels}
+        else:
+            states = {idx.name: list(idx)}
+
+        return states
+
+    @staticmethod
+    def states_to_index(states):
+        """Create a pandas.Index or MultiIndex from a state dict."""
+        idx = pd.MultiIndex.from_product(
+            states.values(),
+            names=states.keys()
+        )
+
+        return idx
+
+    def get_pandas_index(self):
+        """Return a pandas.Index or pandas.MultiIndex."""
+        return self.states_to_index(self.states)
 
     @classmethod
     def from_dict(cls, d):
@@ -615,7 +646,7 @@ class Factor(object):
             df (pandas.DataFrame): data
             cols (list): columns in the data frame to use. If `None`, all
                 columns are used.
-            variable_states (dict): list of allowed states for each random
+            states (dict): list of allowed states for each random
                 variable, indexed by name. If variable_states is None, `jpt`
                 should be a pandas.Series with a proper Index/MultiIndex.
             complete_value (int): Base (count) value to use for combinations of
@@ -630,8 +661,7 @@ class Factor(object):
 
         if states is None:
             # We'll need to try to determine states from the jpt
-            index = counts.index
-            states = dict(zip(index.names, index.levels))
+            states = cls.index_to_states(counts.index)
 
         # Create a factor containing *all* combinations set to `complete_value`.
         f2 = Factor(complete_value, states)
