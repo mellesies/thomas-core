@@ -146,7 +146,6 @@ class BayesianNetwork(ProbabilisticModel):
         """Associate this BayesianNetwork with a BayesianNetworkWidget."""
         self.__widget = widget
 
-    # --- semi-private ---
     def complete_case(self, case, include_weights=True):
         """Complete a single case.
 
@@ -184,16 +183,17 @@ class BayesianNetwork(ProbabilisticModel):
 
         # Create a dataframe by repeating the evicence multiple times: once for
         # each possible (combination of) value(s) of the missing variable(s).
-        # The brackets enclosing the evidence transpose the matrix. Note that
-        # indexing a Series with a dict treats the dict like an iterable.
-        imputed = pd.DataFrame([case[evidence]], index=jpt.index)
+        # The brackets enclosing the evidence transpose the matrix, because the
+        # index is set, the row is broadcast.
+        idx = jpt.get_pandas_index()
+        imputed = pd.DataFrame([case[evidence]], index=idx)
 
         # The combinations of missing variables are in the index. Reset the
         # index to make them part of the dataframe.
         imputed = imputed.reset_index()
 
         # Add the computed probabilities as weights
-        imputed.loc[:, 'weight'] = jpt.values
+        imputed.loc[:, 'weight'] = jpt.flat
 
         if include_weights:
             order = list(case.index) + ['weight']
@@ -213,31 +213,31 @@ class BayesianNetwork(ProbabilisticModel):
         # JPT is complete
         return JPT(Factor(0, self.states) + (summed / summed.sum())['weight'])
 
-    def complete_cases(self, data, inplace=False):
-        """Impute missing values in data frame.
-
-        Args:
-            data (pandas.DataFrame): DataFrame that may have NAs.
-
-        Return:
-            pandas.DataFrame with NAs imputed.
-        """
-        # Subset of all rows that have missing values.
-        NAs = data[data.isna().any(axis=1)]
-        imputed = NAs.apply(
-            self.complete_case,
-            axis=1,
-            include_weights=False
-        )
-
-        # DataFrame.update updates values *in place* by default.
-        if inplace:
-            data.update(imputed)
-        else:
-            data = data.copy()
-            data.update(imputed)
-
-        return data
+    # def complete_cases(self, data, inplace=False):
+    #     """Impute missing values in data frame.
+    #
+    #     Args:
+    #         data (pandas.DataFrame): DataFrame that may have NAs.
+    #
+    #     Return:
+    #         pandas.DataFrame with NAs imputed.
+    #     """
+    #     # Subset of all rows that have missing values.
+    #     NAs = data[data.isna().any(axis=1)]
+    #     imputed = NAs.apply(
+    #         self.complete_case,
+    #         axis=1,
+    #         include_weights=False
+    #     )
+    #
+    #     # DataFrame.update updates values *in place* by default.
+    #     if inplace:
+    #         data.update(imputed)
+    #     else:
+    #         data = data.copy()
+    #         data.update(imputed)
+    #
+    #     return data
 
     # --- graph manipulation ---
     def add_nodes(self, nodes):
@@ -282,7 +282,7 @@ class BayesianNetwork(ProbabilisticModel):
 
         # Create a dataset with unique rows (& counts) ...
         overlapping_cols = list(set(data.columns).intersection(self.vars))
-        counts = counts = data.fillna('NaN')
+        counts = data.fillna('NaN')
         counts = counts.groupby(overlapping_cols, observed=True).size()
         counts.name = 'count'
         counts = pd.DataFrame(counts)
@@ -290,8 +290,6 @@ class BayesianNetwork(ProbabilisticModel):
         counts = counts[counts['count'] > 0]
         counts = counts.reset_index(drop=True)
         counts = counts.replace('NaN', np.nan)
-
-        print(counts)
 
         for k in range(max_iterations):
             # dict of joint distributions, indexed by family index
@@ -303,10 +301,11 @@ class BayesianNetwork(ProbabilisticModel):
 
                 N = row.pop('count')
                 evidence = row.dropna().to_dict()
+                print(f'applying evidence: {evidence}')
 
-                if (idx % 10) == 0:
-                    print(idx, end=', ')
-                    sys.stdout.flush()
+                # if (idx % 10) == 0:
+                #     print(idx, end=', ')
+                #     sys.stdout.flush()
 
                 self.reset_evidence()
                 self.junction_tree.set_evidence_hard(**evidence)
@@ -502,10 +501,8 @@ class BayesianNetwork(ProbabilisticModel):
 
         # If query values were specified we can extract them from the factor.
         if qv:
-            result = result.extract_values(**qv)
+            result = result.get(**qv)
 
-        # FIXME: not sure what I think of the fact that we return scalars
-        #        if the result doesn't have a MultiIndex ...
         if isinstance(result, Factor):
             return CPT(result, conditioned=query_vars)
 

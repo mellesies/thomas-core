@@ -198,21 +198,22 @@ class Factor(object):
         """Return ..."""
 
         # Return the column that corresponds to the position of 'RV'
-        idx = np.array(self._get_index_tuples())
-        return idx[:, self.variables.index(RV)]
+        idx_cols = np.array(self._get_index_tuples())
+        return idx_cols[:, self.variables.index(RV)]
 
-    def _get_bool_idx(self, **kwargs):
+    def _get_bool_idx(self, **states):
         """Return ..."""
+        idx_cols = np.array(self._get_index_tuples())
 
-        # Only keep RVs that are in this factor's scope.
-        states = {RV: state for RV, state in kwargs.items() if RV in self.scope}
+        # Select all entries by default
+        trues = np.ones(idx_cols.shape) == 1
 
-        bools_per_RV = np.array([
-            [s == state for s in self._get_state_idx(RV)]
-            for RV, state in states.items()
-        ])
+        # Filter on kwargs
+        for idx, RV in enumerate(self.scope):
+            if RV in states:
+                trues[:, idx] = idx_cols[:, idx] == states[RV]
 
-        return bools_per_RV.all(axis=0)
+        return trues.all(axis=1)
 
     @property
     def display_name(self):
@@ -374,16 +375,6 @@ class Factor(object):
                 factor.values = factor.values / other.values
                 factor.values[np.isnan(factor.values)] = 0
 
-                # if len(w) > 0:
-                #     print()
-                #     print(w)
-                #     print(factor.scope, factor.values)
-                #     print(other.scope, other.values)
-
-                # assert len(w) == 0
-
-                # factor.values = values
-
         if not inplace:
             return factor
 
@@ -409,7 +400,20 @@ class Factor(object):
         return self.name_to_number[RV][state]
 
     def get(self, **kwargs):
-        """..."""
+        """Return the cells identified by kwargs.
+
+        Examples
+        --------
+        >>> factor = Factor([1, 1], {'A': ['a0', 'a1']})
+        >>> print(factor)
+        factor(A)
+        A
+        a0    1.0
+        a1    1.0
+        dtype: float64
+        >>> factor.get(A='a0')
+        array([1.])
+        """
         return self.flat[self._get_bool_idx(**kwargs)]
 
     def set(self, value, inplace=False, **kwargs):
@@ -434,7 +438,7 @@ class Factor(object):
         """
         factor = self if inplace else Factor.copy(self)
 
-        factor.values.reshape(-1)[factor._get_bool_idx(**kwargs)] = value
+        factor.flat[factor._get_bool_idx(**kwargs)] = value
 
         if not inplace:
             return factor
@@ -490,7 +494,7 @@ class Factor(object):
         if not inplace:
             return factor
 
-    def sum_out(self, variables, simplify=False, inplace=False):
+    def sum_out(self, variables, inplace=False):
         """Sum-out (marginalize) a variable (or list of variables) from the
         factor.
 
@@ -511,17 +515,19 @@ class Factor(object):
             # Nothing to sum out ...
             return factor
 
-        scope = set(factor.variables)
+        scope_set = set(factor.scope)
 
-        if not variable_set.issubset(scope):
-            raise error.NotInScopeError(variable_set, scope)
+        if not variable_set.issubset(scope_set):
+            raise error.NotInScopeError(variable_set, scope_set)
 
-        # Unstack the requested variables into columns and sum over them.
-        var_indexes = [factor.variables.index(var) for var in variables]
+        # Find the indices of the variables to sum out
+        var_indexes = [factor.scope.index(var) for var in variables]
 
-        index_to_keep = set(range(len(factor.variables))) - set(var_indexes)
+        # Remove the variables from the factor
         factor.del_state_names(variables)
 
+        # Sum over the variables we just deleted. This can reduce the result
+        # to a scalar.
         factor.values = np.sum(factor.values, axis=tuple(var_indexes))
 
         if not inplace:

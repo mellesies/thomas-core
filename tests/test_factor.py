@@ -57,14 +57,13 @@ class TestFactor(unittest.TestCase):
         with self.assertRaises(Exception):
             fA.add('noooooo')
 
-    @unittest.skip('deprecate?')
-    def test_extract_values(self):
-        """Test factor.extract_values()."""
+    def test_get(self):
+        """Test factor.get()."""
         fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
 
-        self.assertIsInstance(fA.extract_values(A='a0'), float)
-        self.assertIsInstance(fB_A.extract_values(A='a0', B='b1'), float)
-        self.assertIsInstance(fB_A.extract_values(A='a0'), Factor)
+        self.assertIsInstance(fA.get(A='a0'), np.ndarray)
+        self.assertIsInstance(fB_A.get(A='a0', B='b1'), np.ndarray)
+        self.assertIsInstance(fB_A.get(A='a0'), np.ndarray)
 
     def test_mul(self):
         """Test factor.mul()."""
