@@ -281,40 +281,50 @@ class BayesianNetwork(ProbabilisticModel):
         nodes_without_parents = self.nodes_without_parents
 
         # Create a dataset with unique rows (& counts) ...
-        overlapping_cols = list(set(data.columns).intersection(self.vars))
-        counts = data.fillna('NaN')
-        counts = counts.groupby(overlapping_cols, observed=True).size()
-        counts.name = 'count'
-        counts = pd.DataFrame(counts)
-        counts = counts.reset_index()
-        counts = counts[counts['count'] > 0]
-        counts = counts.reset_index(drop=True)
-        counts = counts.replace('NaN', np.nan)
+        # overlapping_cols = list(set(data.columns).intersection(self.vars))
+        # counts = data.fillna('NaN')
+        # counts = counts.groupby(overlapping_cols, observed=True).size()
+        # counts.name = 'count'
+        # counts = pd.DataFrame(counts)
+        # counts = counts.reset_index()
+        # counts = counts[counts['count'] > 0]
+        # counts = counts.reset_index(drop=True)
+        # counts = counts.replace('NaN', np.nan)
 
         for k in range(max_iterations):
+            # print(f'--- iteration {k} ---')
+
             # dict of joint distributions, indexed by family index
             joints = {}
 
             # Iterate over the data: set a row as evidence and compute the
             # JPT for each family.
-            for idx, row in counts.iterrows():
+            # for idx, row in counts.iterrows():
+            for row_idx, row in data.iterrows():
 
-                N = row.pop('count')
+                # N = row.pop('count')
                 evidence = row.dropna().to_dict()
-                print(f'applying evidence: {evidence}')
-
-                # if (idx % 10) == 0:
-                #     print(idx, end=', ')
-                #     sys.stdout.flush()
 
                 self.reset_evidence()
                 self.junction_tree.set_evidence_hard(**evidence)
 
+                # print(f'------ row: {row_idx} ------\n{row}\n')
+                # print(f'Setting evidence: {evidence}')
+                # print()
+
                 for node in nodes_with_parents:
+                    # print(f'======== Processing node for {node.cpt.display_name} ========')
                     jt_node = self.junction_tree.get_node_for_family(node.vars)
 
+                    # print(f'Using JT node with cluster {jt_node.label}')
                     jpt = jt_node.joint
+
+                    # print()
+                    # print(f'JPT:\n{jpt}\n')
+
                     joints[node] = joints[node] + jpt if node in joints else jpt
+
+                # print()
 
             # Update CPTs for nodes *with* parents
             for node in nodes_with_parents:

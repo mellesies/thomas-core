@@ -364,4 +364,39 @@ class TestBayesianNetwork(unittest.TestCase):
 
         self.Gs.elimination_order = None
 
+    def test_EM_learning(self):
+        """Test the EM-learning algorithm."""
+        # Load the BN (with priors)
+        bn = examples.get_example17_3_network()
+
+        # Load the data
+        filename = thomas.core.get_pkg_data('dataset_17_3.csv')
+        df = pd.read_csv(filename, sep=';').set_index('Case')
+
+        # Basic sanity check
+        self.assertEqual(df.isna().sum().sum(), 8)
+        self.assertEqual(bn['A'].cpt['a1'], 0.2)
+        self.assertEqual(bn['A'].cpt['a2'], 0.8)
+
+        # Run EM-learning. This should update the CPTs in place.
+        bn.EM_learning(df, max_iterations=1)
+
+        self.assertAlmostEqual(bn['A'].cpt['a1'], 0.421, places=3)
+        self.assertAlmostEqual(bn['A'].cpt['a2'], 0.579, places=3)
+
+        self.assertAlmostEqual(bn['B'].cpt['a1', 'b1'], 0.884, places=3)
+        self.assertAlmostEqual(bn['B'].cpt['a1', 'b2'], 0.116, places=3)
+        self.assertAlmostEqual(bn['B'].cpt['a2', 'b1'], 0.394, places=3)
+        self.assertAlmostEqual(bn['B'].cpt['a2', 'b2'], 0.606, places=3)
+
+        self.assertAlmostEqual(bn['C'].cpt['a1', 'c1'], 0.426, places=3)
+        self.assertAlmostEqual(bn['C'].cpt['a1', 'c2'], 0.574, places=3)
+        self.assertAlmostEqual(bn['C'].cpt['a2', 'c1'], 0.666, places=3)
+        self.assertAlmostEqual(bn['C'].cpt['a2', 'c2'], 0.334, places=3)
+
+        self.assertAlmostEqual(bn['D'].cpt['b1', 'd1'], 0.067, places=3)
+        self.assertAlmostEqual(bn['D'].cpt['b1', 'd2'], 0.933, places=3)
+        self.assertAlmostEqual(bn['D'].cpt['b2', 'd1'], 1.000, places=3)
+        self.assertAlmostEqual(bn['D'].cpt['b2', 'd2'], 0.000, places=3)
+
 
