@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 class TestBayesianNetwork(unittest.TestCase):
 
     def setUp(self):
+        thomas.core.options['quiet'] = True
         self.Gs = examples.get_student_network()
         self.maxDiff = None
 

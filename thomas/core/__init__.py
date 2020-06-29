@@ -45,6 +45,10 @@ def get_pkg_data(filename, path='data'):
     return os.path.join(directory, path, filename)
 
 
+options = {
+    'quiet': False
+}
+
 # Convenience imports
 from .base import ProbabilisticModel
 from .factor import Factor

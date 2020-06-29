@@ -16,6 +16,7 @@ from functools import reduce
 
 import json
 
+from . import options
 from .factor import Factor, mul
 from .cpt import CPT
 from .jpt import JPT
@@ -295,8 +296,20 @@ class BayesianNetwork(ProbabilisticModel):
         # print('counts:')
         # print(counts)
 
-        for k in range(max_iterations):
-            print(f'--- iteration {k} ---')
+        iterator = range(max_iterations)
+
+        # If tqdm is available *and* we're not in quiet mode
+        if options.get('quiet', False) == False:
+            try:
+                from tqdm import tqdm
+                iterator = tqdm(iterator)
+            except Exception as e:
+                print('Could not instantiate tqdm')
+                print(e)
+
+
+        for k in iterator:
+            # print(f'--- iteration {k} ---')
 
             # dict of joint distributions, indexed by family index
             joints = {}
