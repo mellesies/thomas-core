@@ -281,18 +281,22 @@ class BayesianNetwork(ProbabilisticModel):
         nodes_without_parents = self.nodes_without_parents
 
         # Create a dataset with unique rows (& counts) ...
-        # overlapping_cols = list(set(data.columns).intersection(self.vars))
-        # counts = data.fillna('NaN')
-        # counts = counts.groupby(overlapping_cols, observed=True).size()
-        # counts.name = 'count'
-        # counts = pd.DataFrame(counts)
-        # counts = counts.reset_index()
-        # counts = counts[counts['count'] > 0]
-        # counts = counts.reset_index(drop=True)
-        # counts = counts.replace('NaN', np.nan)
+        overlapping_cols = list(set(data.columns).intersection(self.vars))
+        counts = data.fillna('NaN')
+        counts = counts.groupby(overlapping_cols, observed=True).size()
+        counts.name = 'count'
+        counts = pd.DataFrame(counts)
+        counts = counts.reset_index()
+        counts = counts[counts['count'] > 0]
+        counts = counts.reset_index(drop=True)
+        counts = counts.replace('NaN', np.nan)
+
+        # print()
+        # print('counts:')
+        # print(counts)
 
         for k in range(max_iterations):
-            # print(f'--- iteration {k} ---')
+            print(f'--- iteration {k} ---')
 
             # dict of joint distributions, indexed by family index
             joints = {}
@@ -300,16 +304,18 @@ class BayesianNetwork(ProbabilisticModel):
             # Iterate over the data: set a row as evidence and compute the
             # JPT for each family.
             # for idx, row in counts.iterrows():
-            for row_idx, row in data.iterrows():
+            for row_idx, row in counts.iterrows():
 
-                # N = row.pop('count')
+                N = row.pop('count')
                 evidence = row.dropna().to_dict()
 
                 self.reset_evidence()
                 self.junction_tree.set_evidence_hard(**evidence)
 
                 # print(f'------ row: {row_idx} ------\n{row}\n')
+                # print(f'------ row: {row_idx} ------')
                 # print(f'Setting evidence: {evidence}')
+                # print(f'Weight: {N}')
                 # print()
 
                 for node in nodes_with_parents:
@@ -317,7 +323,7 @@ class BayesianNetwork(ProbabilisticModel):
                     jt_node = self.junction_tree.get_node_for_family(node.vars)
 
                     # print(f'Using JT node with cluster {jt_node.label}')
-                    jpt = jt_node.joint
+                    jpt = jt_node.joint * N
 
                     # print()
                     # print(f'JPT:\n{jpt}\n')
@@ -349,9 +355,10 @@ class BayesianNetwork(ProbabilisticModel):
                         break
 
             # Since the JT is linked to the BN's nodes' CPTs, we'll need to
-            # invalidate the cache to recompute the probabilities.
+            # invalidate the cache to recompute the probabilities. Setting
+            # hard=True is needed to enforce recomputing joints.
             self.reset_evidence()
-            self.jt.invalidate_caches()
+            self.jt.invalidate_caches(hard=True)
 
             # Update the widget after each iteration
             if self.__widget and notify:

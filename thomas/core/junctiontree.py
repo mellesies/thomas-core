@@ -371,10 +371,10 @@ class JunctionTree(object):
 
         self.invalidate_caches()
 
-    def invalidate_caches(self):
+    def invalidate_caches(self, hard=False):
         """Invalidate the nodes' caches."""
         for n in self.nodes.values():
-            n.invalidate_cache()
+            n.invalidate_cache(hard)
 
     def as_networkx(self):
         """Return the JunctionTree as a networkx.Graph() instance."""
@@ -566,9 +566,12 @@ class TreeNode(object):
         """Add a Bayesian Network node."""
         self._bn_nodes[node.RV] = node
 
-    def invalidate_cache(self):
+    def invalidate_cache(self, hard=False):
         """Invalidate the message cache."""
         self._cache = {}
+
+        if hard:
+            self._factors_multiplied = None
 
     def get_downstream_edges(self, upstream=None):
         return [e for e in self._edges if e is not upstream]

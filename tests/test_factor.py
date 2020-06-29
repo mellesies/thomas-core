@@ -107,6 +107,14 @@ class TestFactor(unittest.TestCase):
         """Test factor.Factor.mul()."""
         fH, fS_H, fE_H = examples.get_example17_2_factors()
 
+        # (examples.get_example17_2_factors()[0].values == np.array([0.25, 0.75])).all()
+
+        self.assertTrue(np.array_equal(fH.values, np.array([0.25, 0.75])))
+        self.assertTrue(np.array_equal(fH.mul(2).values, np.array([0.5, 1.5])))
+        self.assertIsInstance(fH * 2, Factor)
+        self.assertIsInstance(2 * fH, Factor)
+
+
         # Scope of multiplied result should be {H, S}
         self.assertEqual((fH * fS_H).vars, {'H', 'S'})
 

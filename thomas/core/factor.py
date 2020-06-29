@@ -165,9 +165,15 @@ class Factor(object):
         """A + B <=> A.__add__(B)"""
         return self.add(other)
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
     def __mul__(self, other):
         """A * B <=> A.mul(B)"""
         return self.mul(other)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
     def __truediv__(self, other):
         """A / B <=> A.div(B)"""
