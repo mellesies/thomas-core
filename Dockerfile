@@ -31,6 +31,6 @@ RUN pip install ./thomas-core
 EXPOSE 8888
 
 # CMD /bin/bash
-WORKDIR /usr/local/python/thomas-core/notebooks
+WORKDIR /usr/local/python/thomas-core
 # WORKDIR ${HOME}/notebooks
 CMD jupyter lab --ip=0.0.0.0 --allow-root --LabApp.token=''
