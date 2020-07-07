@@ -4,7 +4,7 @@ FROM mellesies/thomas-base-python3:latest
 LABEL maintainer="Melle Sieswerda <m.sieswerda@iknl.nl>"
 
 ARG NB_USER=jupyter
-ARG NB_UID=1000
+ARG NB_UID=1001
 ENV USER ${NB_USER}
 ENV NB_UID ${NB_UID}
 ENV HOME /home/${NB_USER}
