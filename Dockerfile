@@ -21,6 +21,7 @@ COPY . /usr/local/python/thomas-core/
 COPY . ${HOME}
 USER root
 RUN chown -R ${NB_UID} ${HOME}
+RUN chown -R ${NB_UID} /usr/local/python/thomas-core/
 USER ${NB_USER}
 
 WORKDIR /usr/local/python/
@@ -31,4 +32,5 @@ EXPOSE 8888
 
 # CMD /bin/bash
 WORKDIR /usr/local/python/thomas-core/notebooks
-# CMD jupyter lab --ip 0.0.0.0 --allow-root --LabApp.token=''
+# WORKDIR ${HOME}/notebooks
+CMD jupyter lab --ip=0.0.0.0 --allow-root --LabApp.token=''
