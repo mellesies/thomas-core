@@ -31,4 +31,4 @@ EXPOSE 8888
 
 # CMD /bin/bash
 WORKDIR /usr/local/python/thomas-core/notebooks
-CMD jupyter lab --ip 0.0.0.0 --allow-root --LabApp.token=''
+# CMD jupyter lab --ip 0.0.0.0 --allow-root --LabApp.token=''
