@@ -18,7 +18,8 @@ RUN adduser --disabled-password \
 COPY . /usr/local/python/thomas-core/
 
 # Make sure the contents of our repo are also in ${HOME}
-COPY . ${HOME}
+# COPY . ${HOME}
+
 USER root
 RUN chown -R ${NB_UID} ${HOME}
 RUN chown -R ${NB_UID} /usr/local/python/thomas-core/
