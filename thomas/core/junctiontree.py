@@ -541,7 +541,7 @@ class TreeNode(object):
             # print('I should happen only once!')
             # full = Factor(1, idx=self._factor_index_cache)
             factors = [*[n.cpt for n in self._bn_nodes.values()]]
-            self._factors_multiplied = reduce(mul, factors)
+            self._factors_multiplied = reduce(mul, factors, 1)
 
         return self._factors_multiplied
 
