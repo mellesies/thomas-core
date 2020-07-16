@@ -3,12 +3,13 @@
 import os
 from datetime import datetime as dt
 import itertools
+from functools import reduce
+from itertools import product
 import warnings
 
 import numpy as np
 import pandas as pd
 from pandas.core.dtypes.dtypes import CategoricalDtype
-from functools import reduce
 
 import json
 
@@ -68,7 +69,7 @@ class FactorIndex(object):
     @staticmethod
     def get_index_tuples(states):
         """Return an index as a list of tuples."""
-        return list(itertools.product(*states.values()))
+        return list(product(*states.values()))
 
 # ------------------------------------------------------------------------------
 # Factor
@@ -108,17 +109,8 @@ class Factor(object):
         if data.size != expected_size:
             raise ValueError(f"'data' must be of size/length: {expected_size}")
 
-        # copy to prevent modification
-        self.states = states.copy()
-
-        # create two dicts of dicts to map variable state names to index numbers
-        # and back
-        self.name_to_number = {}
-        self.number_to_name = {}
-
-        for RV, values in self.states.items():
-            self.name_to_number[RV] = {name: nr for nr, name in enumerate(self.states[RV])}
-            self.number_to_name[RV] = {nr: name for nr, name in enumerate(self.states[RV])}
+        # Set self.states and create indices/mappings.
+        self._set_states(states)
 
         # Storing the data as a multidimensional array helps with addition,
         # subtraction, multiplication and division.
@@ -145,21 +137,14 @@ class Factor(object):
         """factor[x] <==> factor.__getitem__(x)"""
 
         if isinstance(keys, list):
-            # FIXME: this is probably slow
-            indices = [self._keys_to_indices(idx) for idx in keys]
+            indices = [self._states_to_indices(idx) for idx in keys]
             return [self.values[idx] for idx in indices]
 
-        return self.values[self._keys_to_indices(keys)]
+        return self.values[self._states_to_indices(keys)]
 
     def __setitem__(self, keys, value):
         """factor[x] = y <==> factor.__setitem__(x, y)"""
-        self.values[self._keys_to_indices(keys)] = value
-
-    # def __getattr__(self, key):
-    #     if key not in self.states:
-    #         msg = f"'{self.__class__.__name__}' object has no attribute '{key}'"
-    #         raise AttributeError(msg)
-    #     return self.index_for(key)
+        self.values[self._states_to_indices(keys)] = value
 
     def __add__(self, other):
         """A + B <=> A.__add__(B)"""
@@ -179,16 +164,36 @@ class Factor(object):
         """A / B <=> A.div(B)"""
         return self.div(other)
 
-    def _keys_to_indices(self, keys):
-        """Return the indices for keys ..."""
-        if isinstance(keys, (str, slice)):
-            keys = (keys, )
+    def _set_states(self, states):
+        """Set self.states and create indices/mappings."""
+        self.states = states.copy()
 
-        states = [(self.variables[i], state) for i, state in enumerate(keys)]
+        # create two dicts of dicts to map variable state names to index numbers
+        # and back
+        # TODO: refactor `name_to_number` to `name_to_position`
+        self.name_to_number = {}
+        self.number_to_name = {}
+
+        for RV, values in self.states.items():
+            self.name_to_number[RV] = {name: nr for nr, name in enumerate(self.states[RV])}
+            self.number_to_name[RV] = {nr: name for nr, name in enumerate(self.states[RV])}
+
+    def _states_to_indices(self, states):
+        """Return the indices for states.
+
+        Args:
+            states (str, list, slice): state values, provided in the same order
+                as self.scope.
+        """
+        if isinstance(states, (str, slice)):
+            states = (states, )
+
+        # Create (RV, state) tuples from the provided states
+        states = [(self.variables[i], state) for i, state in enumerate(states)]
         indices = [self.get_state_index(RV, state) for RV, state in states]
         return tuple(indices)
 
-    def _get_index_tuples(self):
+    def _get_index_tuples(self, RVs=None):
         """Return an index as a list of tuples.
 
         Args:
@@ -197,8 +202,13 @@ class Factor(object):
         Return:
             list of tuples, making up all combinations of states.
         """
-        # return np.array(list(itertools.product(*states.values())))
-        return list(itertools.product(*self.states.values()))
+        # return np.array(list(product(*states.values())))
+        if RVs is None:
+            states = self.states.values()
+        else:
+            states = [self.states[RV] for RV in RVs]
+
+        return list(product(*states))
 
     def _get_state_idx(self, RV):
         """Return ..."""
@@ -263,6 +273,10 @@ class Factor(object):
         # rearranging the axes of 'factor' to match 'order'
         variables = factor.variables
 
+        # extend `order` to facilitate setting only the first n values.
+        if len(order) < len(variables):
+            order = order + list(set(variables) - set(order))
+
         for axis in range(factor.values.ndim):
             exchange_index = variables.index(order[axis])
 
@@ -273,20 +287,91 @@ class Factor(object):
 
             factor.values = factor.values.swapaxes(axis, exchange_index)
 
-        factor.states = {key: factor.states[key] for key in order}
+        # factor.states = {key: factor.states[key] for key in order}
+        factor._set_states({key: factor.states[key] for key in order})
 
         if not inplace:
             return factor
 
-    def align_index(self, other):
-        """..."""
-        indices = other._get_index_tuples()
-        values = self[indices]
-        return Factor(values, other.states)
+    def align_index(self, other, inplace=False):
+        """Align the index to conform to `other`.
+
+        Note: this requires the scope of the two factors to overlap!
+        """
+        factor = self if inplace else Factor.copy(self)
+        original_scope = factor.scope
+
+        # We need at least one overlapping variable to be able to align anything
+        shared_vars = list(set(other.variables).intersection(factor.variables))
+        shared_states = {RV: other.states[RV] for RV in shared_vars}
+
+
+        if not len(shared_vars):
+            raise error.IncompatibleScopeError(factor.scope, other.scope)
+
+        # Make sure that the shared_vars are first in scope
+        factor.reorder_scope(shared_vars, inplace=True)
+
+        # get a list of tuples; each tuple is ordered according to the scope
+        shared_indices = other._get_index_tuples(shared_vars)
+
+        remaining_vars = factor.variables[len(shared_vars):]
+
+        if remaining_vars:
+            # if there are other variables in scope, we'll need to extend the
+            # indices in include theirs
+            remaining_indices = factor._get_index_tuples(remaining_vars)
+
+            # `product` creates a list of tuples: combinations of shared_indices
+            # and remaining_indices. by adding those we get the full index.
+            _combine_indices = lambda x: x[0] + x[1]
+            indices = list(
+                map(
+                    _combine_indices,
+                    product(shared_indices, remaining_indices)
+                )
+            )
+
+            states = {
+                **shared_states,
+                **{RV: factor.states[RV] for RV in remaining_vars}
+            }
+
+
+        else:
+            # if there are no other variables in scope, we can just use the
+            # shared_indices to rearrange the values
+            indices = shared_indices
+            states = shared_states
+
+        # sort factor.values according to the indices
+        cardinality = [len(i) for i in states.values()]
+        values = np.array(factor[indices]).reshape(cardinality)
+
+        factor._set_states(states)
+        factor.values = values
+        factor.reorder_scope(original_scope, inplace=True)
+
+        if not inplace:
+            return factor
 
     def extend_with(self, other, inplace=False):
         """Extend this factor with the variables & states of another."""
         factor = self if inplace else Factor.copy(self)
+
+        shared_vars = set(other.variables).intersection(factor.variables)
+
+        if shared_vars:
+            # Make sure that the *shared* variables have the same states / the
+            # indices are aligned.
+            factor.align_index(other, inplace=True)
+
+            f_states = {RV: factor.states[RV] for RV in shared_vars}
+            o_states = {RV: other.states[RV] for RV in shared_vars}
+
+            if f_states != o_states:
+                # ---> move alignment here when it works
+                raise error.StatesNotAlignedError(f_states, o_states)
 
         # Note: the order of 'extra_vars' holds no importance ..
         extra_vars = set(other.variables) - set(factor.variables)
@@ -305,7 +390,8 @@ class Factor(object):
         if not inplace:
             return factor
 
-    def extend_and_reorder(self, factor, other):
+    @staticmethod
+    def extend_and_reorder(factor, other):
         """Extend factors factor and other to be over the same scope and
         reorder their axes to match.
         """

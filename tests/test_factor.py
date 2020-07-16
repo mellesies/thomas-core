@@ -152,6 +152,74 @@ class TestFactor(unittest.TestCase):
         self.assertEquals(fB_A['a0', 'b1'], 0.75)
         self.assertEquals(fB_A['a0', 'b0'], 0.25)
 
+    def test_align_index(self):
+        """Test index aligning."""
+        fA1 = Factor.from_dict({'type': 'Factor',
+         'scope': ['A'],
+         'states': {'A': ['a1', 'a2', 'a3']},
+         'data': [1.0, 2.0, 3.0]})
+
+        fA2 = Factor.from_dict({'type': 'Factor',
+         'scope': ['A'],
+         'states': {'A': ['a3', 'a1', 'a2']},
+         'data': [3.0, 1.0, 0.0]})
+
+        fB = Factor.from_dict({'type': 'Factor',
+         'scope': ['B'],
+         'states': {'B': ['b3', 'b1', 'b2']},
+         'data': [3.0, 1.0, 0.0]})
+
+        aligned = fA1.align_index(fA2)
+
+        self.assertTrue(isinstance(aligned, Factor))
+        self.assertEquals(aligned.scope, fA1.scope)
+        self.assertEquals(aligned.scope, fA2.scope)
+
+        self.assertEquals(aligned['a1'], 1.0)
+        self.assertEquals(aligned['a2'], 2.0)
+        self.assertEquals(aligned['a3'], 3.0)
+
+        with self.assertRaises(error.IncompatibleScopeError):
+            fA1.align_index(fB)
+
+
+        # Same factors, but one variable has a different order.
+        fB_A1 = Factor(
+            [0.2, 0.8, 0.75, 0.25], {
+                'A': ['a1', 'a0'],
+                'B': ['b1', 'b0']
+        })
+
+        fB_A2 = Factor(
+            [0.8, 0.2, 0.25, 0.75], {
+                'A': ['a1', 'a0'],
+                'B': ['b0', 'b1']
+        })
+
+        aligned = fB_A1.align_index(fB_A2)
+        self.assertEquals(aligned['a1', 'b1'], 0.2)
+        self.assertEquals(aligned['a1', 'b0'], 0.8)
+        self.assertEquals(aligned['a0', 'b1'], 0.75)
+        self.assertEquals(aligned['a0', 'b0'], 0.25)
+
+        aligned = fB_A2.align_index(fB_A1)
+        self.assertEquals(aligned['a1', 'b1'], 0.2)
+        self.assertEquals(aligned['a1', 'b0'], 0.8)
+        self.assertEquals(aligned['a0', 'b1'], 0.75)
+        self.assertEquals(aligned['a0', 'b0'], 0.25)
+
+        # This redefines fA1 and fA0!
+        fA1 = Factor([1.0, 0.0], {'A': ['a1', 'a0']})
+        fA0 = Factor([0.0, 1.0], {'A': ['a0', 'a1']})
+
+        aligned = fA1.align_index(fB_A1)
+        self.assertEquals(aligned['a1'], 1.0)
+        self.assertEquals(aligned['a0'], 0.0)
+
+        aligned = fA0.align_index(fB_A1)
+        self.assertEquals(aligned['a1'], 1.0)
+        self.assertEquals(aligned['a0'], 0.0)
+
     def test_multiplication(self):
         """Test factor multiplication."""
         # Get the Factors for the Sprinkler network
@@ -168,6 +236,23 @@ class TestFactor(unittest.TestCase):
         self.assertAlmostEquals(fAB['a0', 'b0'], 0.10, places=2)
 
         self.assertAlmostEquals(fAB.sum(), 1, places=8)
+
+    def test_multiplication_state_order(self):
+        """Test factor multiplication with states ordered differently."""
+        # fE has states ordered ['T', 'F']; T=1.0, F=0.0
+        fE_out_of_order = Factor.from_dict({'type': 'Factor',
+         'scope': ['E'],
+         'states': {'E': ['T', 'F']},
+         'data': [1.0, 0.0]})
+
+        fE = Factor.from_dict({'type': 'Factor',
+         'scope': ['E'],
+         'states': {'E': ['F', 'T']},
+         'data': [0.0, 1.0]})
+
+        multiplied = fE * fE_out_of_order
+        self.assertAlmostEquals(multiplied['T'], 1.0, places=2)
+        self.assertAlmostEquals(multiplied['F'], 0.0, places=2)
 
     @unittest.skip('deprecate?')
     def test_overlaps_with(self):
@@ -283,13 +368,3 @@ class TestFactor(unittest.TestCase):
 
         # with self.assertRaises(error.InvalidStateError) as context:
         #     fB_A.keep_values(A='a2')
-
-    # @unittest.skip('deprecate?')
-    # def test_unstack(self):
-    #     """Test factor.unstack()."""
-    #     fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
-    #
-    #     unstacked = fB_A.unstack()
-    #
-    #     self.assertIsInstance(unstacked, pd.DataFrame)
-    #     self.assertEqual(unstacked.shape, (2, 2))

@@ -361,11 +361,6 @@ class JunctionTree(object):
             if state not in indicator.states[RV]:
                 raise error.InvalidStateError(RV, state, indicator)
 
-            # FIXME: it's not pretty to access Factor._data like this!
-            # data = indicator._data
-
-            # data[data.index.get_level_values(RV) != state] = 0.0
-            # data[data.index.get_level_values(RV) == state] = 1.0
             indicator.set(1, **{RV: state}, inplace=True)
             indicator.set_complement(0, **{RV: state}, inplace=True)
 

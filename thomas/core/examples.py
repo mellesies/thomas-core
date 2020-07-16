@@ -87,6 +87,9 @@ def get_sprinkler_factors():
 
     Data copied from "Modeling and Reasoning with Bayesian Networks"
     (page 127-128) by Adnan Darwiche (2009).
+
+    Examples:
+    >>> fA, fB_A, fC_A, fD_BC, fE_C = examples.get_sprinkler_factors()
     """
     states = {
         'A': ['a1', 'a0'],

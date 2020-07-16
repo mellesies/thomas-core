@@ -401,6 +401,11 @@ class BayesianNetwork(ProbabilisticModel):
         # to be recreated.
         self._jt = None
 
+        # Update the widget
+        if self.__widget:
+            self.__widget.update()
+
+
     def likelihood(self, df, per_case=False):
         """Return the likelihood of the current network parameters given data.
 
@@ -562,6 +567,7 @@ class BayesianNetwork(ProbabilisticModel):
         This corresponds to setting the likelihood of the provided state to 1
         and the likelihood of all other states to 0.
         """
+        log.debug(f"Setting evidence for '{RV}': {state}")
         self.junction_tree.set_evidence_hard(**{RV: state})
         self.evidence[RV] = state
 

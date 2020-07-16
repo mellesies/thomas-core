@@ -42,6 +42,8 @@ setup(
         "thomas.core": [
             "__build__",
             "data/dataset_17_2.csv",
+            "data/dataset_17_2_with_NAs.csv",
+            "data/dataset_17_3.csv",
             "data/*.lark",
             "data/*.json",
             "data/*.oobn",

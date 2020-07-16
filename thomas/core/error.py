@@ -6,6 +6,17 @@ class NotInScopeError(Exception):
         msg = f"Variable {variable} not in scope {scope}"
         super().__init__(msg)
 
+class IncompatibleScopeError(Exception):
+    """Raised when trying to align two factors' index with unequal scope."""
+    def __init__(self, scope, other_scope):
+        msg = f"Scope {scope} is not compatible with {other_scope}"
+        super().__init__(msg)
+
+class StatesNotAlignedError(Exception):
+    """Raised when trying to perform an operation factors with unequal states."""
+    def __init__(self, states, other_states):
+        msg = f"States {states} not aligned with {other_states}"
+        super().__init__(msg)
 
 class InvalidStateError(Exception):
     def __init__(self, variable, state, factor):
