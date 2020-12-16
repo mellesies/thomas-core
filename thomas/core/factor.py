@@ -761,13 +761,15 @@ class Factor(object):
             # We'll need to try to determine states from the jpt
             states = cls.index_to_states(counts.index)
 
-        # Create a factor containing *all* combinations set to `complete_value`.
-        f2 = Factor(complete_value, states)
+        if len(cols) > 1:
+            # Create a factor containing *all* combinations set to `complete_value`.
+            f2 = Factor(complete_value, states)
 
-        # By summing the Factor with the Series all combinations not in the
-        # data are set to `complete_value`.
-        total = f2.as_series() + counts
-
+            # By summing the Factor with the Series all combinations not in the
+            # data are set to `complete_value`.
+            total = f2.as_series() + counts
+        else:
+            total = counts
         values = np.nan_to_num(total.values, nan=complete_value)
         return Factor(values, states=states)
 

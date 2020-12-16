@@ -20,6 +20,7 @@ from . import options
 from .factor import Factor, mul
 from .cpt import CPT
 from .jpt import JPT
+from .structurelearning import greedy_network_learning, compute_cpts_network
 
 from .base import ProbabilisticModel
 from .bag import Bag
@@ -36,18 +37,18 @@ log = logging.getLogger('thomas.bn')
 # BayesianNetwork
 # ------------------------------------------------------------------------------
 class BayesianNetwork(ProbabilisticModel):
-    """A Bayesian Network (BN) consistst of Nodes and directed Edges.
+    """A Bayesian Network (BN) consists of Nodes and directed Edges.
 
     A BN is essentially a Directed Acyclic Graph (DAG) where each Node
     represents a Random Variable (RV) and is associated with a conditional
-    probability theable (CPT). A CPT can only have a *single* conditioned
+    probability table (CPT). A CPT can only have a *single* conditioned
     variable; zero or more *conditioning*  variables are allowed. Conditioning
     variables are represented as the Node's parents.
 
     BNs can be used for inference. To do this efficiently, the BN first
     constructs a JunctionTree (or JoinTree).
 
-    Because of the relation between the probaility distribution (expressed as a
+    Because of the relation between the probability distribution (expressed as a
     set of CPTs) and the graph structure, it is possible to instantiate a BN
     from a list of CPTs.
     """
@@ -405,7 +406,6 @@ class BayesianNetwork(ProbabilisticModel):
         if self.__widget:
             self.__widget.update()
 
-
     def likelihood(self, df, per_case=False):
         """Return the likelihood of the current network parameters given data.
 
@@ -600,6 +600,13 @@ class BayesianNetwork(ProbabilisticModel):
             RV = cpt.conditioned[0]
             bn[RV].cpt = cpt
 
+        return bn
+
+    @classmethod
+    def from_data(cls, name, df, degree_network=2):
+        network = greedy_network_learning(df, degree_network)
+        cpts = compute_cpts_network(df, network)
+        bn = BayesianNetwork.from_CPTs(name, cpts.values())
         return bn
 
     # --- visualization ---
