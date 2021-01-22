@@ -12,3 +12,5 @@ thomas/core/.vscode
 *.log
 htmlcov
 build
+.idea/
+**/ipynb_checkpoints
