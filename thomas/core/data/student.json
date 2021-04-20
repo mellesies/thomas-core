@@ -10,7 +10,7 @@
                 "i0",
                 "i1"
             ],
-            "description": "",
+            "description": "Intelligence",
             "cpt": {
                 "type": "CPT",
                 "scope": [
@@ -45,7 +45,7 @@
                 "s0",
                 "s1"
             ],
-            "description": "",
+            "description": "SAT Score",
             "cpt": {
                 "type": "CPT",
                 "scope": [
@@ -89,7 +89,7 @@
                 "d0",
                 "d1"
             ],
-            "description": "",
+            "description": "Difficulty",
             "cpt": {
                 "type": "CPT",
                 "scope": [
@@ -125,7 +125,7 @@
                 "g2",
                 "g3"
             ],
-            "description": "",
+            "description": "Grade",
             "cpt": {
                 "type": "CPT",
                 "scope": [
@@ -184,7 +184,7 @@
                 "l0",
                 "l1"
             ],
-            "description": "",
+            "description": "Letter",
             "cpt": {
                 "type": "CPT",
                 "scope": [

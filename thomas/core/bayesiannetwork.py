@@ -1,29 +1,26 @@
 # -*- coding: utf-8 -*-
 """BayesianNetwork"""
-import sys, os
-from datetime import datetime as dt
+from typing import List, Tuple
 
-import itertools
-from collections import OrderedDict
+import sys
+from functools import reduce
+
+import numpy as np
+import pandas as pd
 
 import networkx as nx
 import networkx.algorithms.moral
 
-import numpy as np
-import pandas as pd
-from pandas.core.dtypes.dtypes import CategoricalDtype
-from functools import reduce
-
 import json
 
 from . import options
-from .factor import Factor, mul
+from .factor import Factor
 from .cpt import CPT
 from .jpt import JPT
 
 from .base import ProbabilisticModel
 from .bag import Bag
-from .junctiontree import JunctionTree, TreeNode
+from .junctiontree import JunctionTree
 
 from . import error
 
@@ -31,10 +28,6 @@ import logging
 log = logging.getLogger('thomas.bn')
 
 
-
-# ------------------------------------------------------------------------------
-# BayesianNetwork
-# ------------------------------------------------------------------------------
 class BayesianNetwork(ProbabilisticModel):
     """A Bayesian Network (BN) consistst of Nodes and directed Edges.
 
@@ -89,7 +82,8 @@ class BayesianNetwork(ProbabilisticModel):
         """x.__repr__() <==> repr(x)"""
         s = f"<BayesianNetwork name='{self.name}'>\n"
         for RV in self.nodes:
-            s += f"  <Node RV='{RV}' states={self.nodes[RV].states} />\n"
+            node = self.nodes[RV]
+            s += f"  <Node RV='{RV}' description='{node.description}' states={self.nodes[RV].states} />\n"
 
         s += '</BayesianNetwork>'
 
@@ -214,32 +208,6 @@ class BayesianNetwork(ProbabilisticModel):
         # JPT is complete
         return JPT(Factor(0, self.states) + (summed / summed.sum())['weight'])
 
-    # def complete_cases(self, data, inplace=False):
-    #     """Impute missing values in data frame.
-    #
-    #     Args:
-    #         data (pandas.DataFrame): DataFrame that may have NAs.
-    #
-    #     Return:
-    #         pandas.DataFrame with NAs imputed.
-    #     """
-    #     # Subset of all rows that have missing values.
-    #     NAs = data[data.isna().any(axis=1)]
-    #     imputed = NAs.apply(
-    #         self.complete_case,
-    #         axis=1,
-    #         include_weights=False
-    #     )
-    #
-    #     # DataFrame.update updates values *in place* by default.
-    #     if inplace:
-    #         data.update(imputed)
-    #     else:
-    #         data = data.copy()
-    #         data.update(imputed)
-    #
-    #     return data
-
     # --- graph manipulation ---
     def add_nodes(self, nodes):
         """Add a Node to the network."""
@@ -254,6 +222,10 @@ class BayesianNetwork(ProbabilisticModel):
             self.nodes[parent_RV].add_child(self.nodes[child_RV])
 
         self._jt = None
+
+    def delete_edge(self, edge: Tuple[str, str]):
+        parent_RV, child_RV = edge
+        self.nodes[parent_RV]
 
     def moralize_graph(self):
         """Return the moral graph for the DAG.
@@ -277,6 +249,13 @@ class BayesianNetwork(ProbabilisticModel):
             * https://www.cse.ust.hk/bnbook/pdf/l07.h.pdf
             * https://www.youtube.com/watch?v=NDoHheP2ww4
         """
+        # Ensure the data only contains states that are allowed.
+        data = data.copy()
+
+        for RV in self.scope:
+            node = self.nodes[RV]
+            data = data[data[RV].isin(node.states)]
+
         # Children (i.e. nodes with parents) identify the families in the BN.
         nodes_with_parents = self.nodes_with_parents
         nodes_without_parents = self.nodes_without_parents
@@ -292,21 +271,16 @@ class BayesianNetwork(ProbabilisticModel):
         counts = counts.reset_index(drop=True)
         counts = counts.replace('NaN', np.nan)
 
-        # print()
-        # print('counts:')
-        # print(counts)
-
         iterator = range(max_iterations)
 
         # If tqdm is available *and* we're not in quiet mode
-        if options.get('quiet', False) == False:
+        if not options.get('quiet', False):
             try:
                 from tqdm import tqdm
                 iterator = tqdm(iterator)
             except Exception as e:
                 print('Could not instantiate tqdm')
                 print(e)
-
 
         for k in iterator:
             # print(f'--- iteration {k} ---')
@@ -386,6 +360,12 @@ class BayesianNetwork(ProbabilisticModel):
             df (pandas.Dataframe): dataset that contains columns with names
                 corresponding to the variables in this BN's scope.
         """
+        # Ensure the data only contains states that are allowed.
+        data = df.copy()
+
+        for RV in self.scope:
+            node = self.nodes[RV]
+            data = data[data[RV].isin(node.states)]
 
         # The empirical distribution may not contain all combinations of
         # variable states; `from_data` fixes that by setting all missing entries
@@ -404,7 +384,6 @@ class BayesianNetwork(ProbabilisticModel):
         # Update the widget
         if self.__widget:
             self.__widget.update()
-
 
     def likelihood(self, df, per_case=False):
         """Return the likelihood of the current network parameters given data.
@@ -509,14 +488,13 @@ class BayesianNetwork(ProbabilisticModel):
         required_RVs = set(qd + list(qv.keys()) + ed)
         node = self.junction_tree.get_node_for_set(required_RVs)
 
-        if node is None and use_VE == False:
+        if node is None and use_VE is False:
             log.info('Cannot answer this query with the current junction tree.')
             use_VE = True
 
         if use_VE:
             log.debug('Using VE')
             return self.as_bag().compute_posterior(qd, qv, ed, ev)
-
 
         # Compute the answer to the query using the junction tree.
         log.debug(f'Found a node in the JT that contains {required_RVs}: {node.cluster}')
@@ -545,6 +523,9 @@ class BayesianNetwork(ProbabilisticModel):
 
     def reset_evidence(self, RVs=None, notify=True):
         """Reset evidence."""
+        if isinstance(RVs, str):
+            RVs = [RVs]
+
         self.junction_tree.reset_evidence(RVs)
 
         if RVs:
@@ -686,9 +667,7 @@ class BayesianNetwork(ProbabilisticModel):
             data = fp.read()
             return cls.from_json(data)
 
-# ------------------------------------------------------------------------------
-# Node
-# ------------------------------------------------------------------------------
+
 class Node(object):
     """Base class for discrete and continuous nodes in a Bayesian Network.
 
@@ -713,11 +692,11 @@ class Node(object):
 
         # A node needs to know its parents in order to determine the shape of
         # its CPT. This should be a list of Nodes.
-        self._parents = []
+        self._parents: List[Node] = []
 
         # For purposes of message passing, a node also needs to know its
         # children.
-        self._children = []
+        self._children: List[Node] = []
 
     @property
     def parents(self):
@@ -755,7 +734,7 @@ class Node(object):
 
         return False
 
-    def add_child(self, child, add_parent=True):
+    def add_child(self, child: object, add_parent=True) -> bool:
         """Add a child to the Node.
 
         Args:
@@ -776,7 +755,7 @@ class Node(object):
 
         return False
 
-    def remove_parent(self, parent, remove_child=True):
+    def remove_parent(self, parent: object, remove_child=True) -> bool:
         """Remove a parent from the Node.
 
         If succesful, the Node's distribution's parameters (ContinousNode) or
@@ -790,6 +769,22 @@ class Node(object):
 
             if remove_child:
                 parent._children.remove(self)
+
+            return True
+
+        return False
+
+    def remove_child(self, child: object, remove_parent=True) -> bool:
+        """Remove a child from the Node.
+
+        Return:
+            True iff the parent was removed.
+        """
+        if child in self._children:
+            self._children.remove(child)
+
+            if remove_parent:
+                child._parents.remove(self)
 
             return True
 
@@ -810,9 +805,7 @@ class Node(object):
         clstype = getattr(sys.modules[__name__], clsname)
         return clstype.from_dict(d)
 
-# ------------------------------------------------------------------------------
-# DiscreteNetworkNode
-# ------------------------------------------------------------------------------
+
 class DiscreteNetworkNode(Node):
     """Node in a Bayesian Network with discrete values."""
 
@@ -1025,10 +1018,7 @@ class DiscreteNetworkNode(Node):
             states=d['states'],
             description=d['description']
         )
-        node.position = d.get('position', (0,0))
+        node.position = d.get('position', (0, 0))
         node.cpt = cpt
 
         return node
-
-
-

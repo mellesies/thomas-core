@@ -78,7 +78,9 @@ class Factor(object):
     """Factor for discrete variables.
 
     Code is heavily inspired (not to say partially copied from) by pgmpy's
-    DiscreteFactor. See https://github.com/pgmpy/pgmpy/blob/dev/pgmpy/factors/discrete/DiscreteFactor.py
+    DiscreteFactor.
+
+    See https://github.com/pgmpy/pgmpy/blob/dev/pgmpy/factors/discrete/DiscreteFactor.py
     """
 
     def __init__(self, data, states):
@@ -123,7 +125,7 @@ class Factor(object):
                 s = f'{self.display_name}\n{repr(self.as_series())}'
             return s
 
-        return f'{self.display_name}: {self.values:.2}'
+        return f'{self.display_name}: {self.values:.2f}'
 
     def __eq__(self, other):
         """f1 == f2 <==> f1.__eq__(f2)"""
@@ -489,7 +491,13 @@ class Factor(object):
         if isinstance(state, (tuple, list)):
             return [self.name_to_number[RV][s] for s in state]
 
-        return self.name_to_number[RV][state]
+        try:
+            return self.name_to_number[RV][state]
+        except:
+            print(f'self.name_to_number: {self.name_to_number}')
+            print(f'RV: {RV}')
+            print(f'state: {state}')
+            raise
 
     def get(self, **kwargs):
         """Return the cells identified by kwargs.
@@ -674,7 +682,7 @@ class Factor(object):
                 factor[idx] = series.get(idx, 0)
 
         else:
-            factor = Factor(series.values, states)
+            factor = Factor(series[full_idx].values, states)
 
         return factor
 

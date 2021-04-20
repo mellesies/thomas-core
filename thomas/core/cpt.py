@@ -1,19 +1,6 @@
 # -*- coding: utf-8 -*-
 """CPT: Conditional Probability Table."""
-import os
-from datetime import datetime as dt
-
-from collections import OrderedDict
-
-import numpy as np
-import pandas as pd
-from pandas.core.dtypes.dtypes import CategoricalDtype
-from functools import reduce
-
-import json
-
 from .factor import *
-from . import error as e
 
 
 # ------------------------------------------------------------------------------
@@ -93,7 +80,11 @@ class CPT(Factor):
         return f'P({self.short_query_str()})'
 
     def _repr_html_(self):
-        """Return an HTML representation of this CPT."""
+        """Return an HTML representation of this CPT.
+
+        Note that the order of the index may differ as pandas sorts it when
+        performing `unstack()`.
+        """
         data = self.as_series()
 
         if self.conditioning:
@@ -124,6 +115,15 @@ class CPT(Factor):
     def as_factor(self):
         """Return a copy this CPT as a Factor."""
         return Factor(self.values, self.states)
+
+    def as_dataframe(self):
+        """Return the CPT as a pandas.DataFrame."""
+        data = self.as_series()
+
+        if self.conditioning:
+            data = data.unstack(self.conditioned)
+
+        return data
 
     @classmethod
     def from_factor(cls, factor):

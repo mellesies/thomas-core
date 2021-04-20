@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
+import numpy as np
+
 
 def index_to_dict(idx):
     if isinstance(idx, pd.MultiIndex):
@@ -9,10 +11,12 @@ def index_to_dict(idx):
 
 
 def remove_none_values_from_dict(dict_):
-   """Remove none values, like `None` and `np.nan` from the dict."""
-   t = lambda x: (x is None) or (isinstance(x, float) and np.isnan(x))
-   result = {k:v for k,v in dict_.items() if not t(v)}
-   return result
+    """Remove none values, like `None` and `np.nan` from the dict."""
+    def t(x):
+        return (x is None) or (isinstance(x, float) and np.isnan(x))
+
+    result = {k: v for k, v in dict_.items() if not t(v)}
+    return result
 
 
 # ------------------------------------------------------------------------------
@@ -58,10 +62,10 @@ class ProbabilisticModel(object):
     def create_query_string(cls, qd=None, qv=None, ed=None, ev=None):
         """Generate a query string."""
         qd_str = ','.join(qd) if qd else ''
-        qv_str = ','.join([f'{k}={v}' for k,v in qv.items()]) if qv else ''
+        qv_str = ','.join([f'{k}={v}' for k, v in qv.items()]) if qv else ''
 
         ed_str = ','.join(ed) if ed else ''
-        ev_str = ','.join([f'{k}={v}' for k,v in ev.items()]) if ev else ''
+        ev_str = ','.join([f'{k}={v}' for k, v in ev.items()]) if ev else ''
 
         Q = ','.join([q for q in [qd_str, qv_str] if q])
         E = ','.join([e for e in [ed_str, ev_str] if e])
@@ -111,4 +115,3 @@ class ProbabilisticModel(object):
     #         return d.idxmax(), d.max()
     #
     #     return d.idxmax()
-

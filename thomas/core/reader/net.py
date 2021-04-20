@@ -30,6 +30,7 @@ GRAMMAR = r"""
 
     ?value: string
           | number
+          | "boolean"
           | tuple
 
     string: ESCAPED_STRING
