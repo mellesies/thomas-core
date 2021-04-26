@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import lark
 
-from ..factor import Factor
 from ..cpt import CPT
 from .. import bayesiannetwork
 
@@ -228,11 +227,6 @@ def _create_structure(tree):
                 states={n: states[n] for n in stacked.index.names},
                 conditioned=[name],
             )
-
-            # cpt = CPT(
-            #     Factor.from_series(df.stack()),
-            #     conditioned=[name],
-            # )
 
         # Else, it's a probability table
         else:

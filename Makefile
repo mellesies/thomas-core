@@ -24,14 +24,34 @@ docker-image:
 	docker build \
 	  -t thomas-core:${TAG} \
 	  -t mellesies/thomas-core:${TAG} \
-	  ./
+	  .
+
+docker-rebuild:
+	docker build \
+	--no-cache \
+	  -t thomas-core:${TAG} \
+	  -t mellesies/thomas-core:${TAG} \
+	  .
 
 docker-run:
-	# Run the docker image
-	docker run --rm -it -p 8888:8888 --name thomas-core thomas-core:${TAG}
+	# Run the docker image and listen on port 9999
+	docker run --rm -it -p 9999:8888 --name thomas-core thomas-core:${TAG}
+
+docker-run-browser:
+	# Run the docker image and listen on port 9999
+	docker run -d --rm -it -p 9999:8888 --name thomas-core thomas-core:${TAG}
+
+	# Open a browser
+	sleep 2
+	open http://localhost:9999/lab
+
+docker-stop:
+	# Stop the docker image
+	docker stop thomas-core
+
 
 docker-push:
-	mellesies/thomas-core:${TAG}
+	docker push mellesies/thomas-core:${TAG}
 
 clean:
 	# Cleaning ...

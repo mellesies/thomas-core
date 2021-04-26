@@ -1,24 +1,17 @@
 # -*- coding: utf-8 -*-
 """Factor: the basis for all reasoning."""
-import os
-from datetime import datetime as dt
-import itertools
-from functools import reduce
+from typing import Union
+
 from itertools import product
 import warnings
+import logging
 
 import numpy as np
 import pandas as pd
-from pandas.core.dtypes.dtypes import CategoricalDtype
 
-import json
-
-import logging
-log = logging.getLogger('thomas.factor')
-
-import thomas.core
-import thomas.core.base
 from thomas.core import error
+
+log = logging.getLogger('thomas.factor')
 
 
 # ------------------------------------------------------------------------------
@@ -32,6 +25,7 @@ def isiterable(obj):
         return False
     else:
         return True
+
 
 def mul(x1, x2):
     """Multiply two Factors with each other.
@@ -52,6 +46,7 @@ def mul(x1, x2):
 
     return result
 
+
 # ------------------------------------------------------------------------------
 # FactorIndex
 # ------------------------------------------------------------------------------
@@ -70,6 +65,7 @@ class FactorIndex(object):
     def get_index_tuples(states):
         """Return an index as a list of tuples."""
         return list(product(*states.values()))
+
 
 # ------------------------------------------------------------------------------
 # Factor
@@ -462,7 +458,7 @@ class Factor(object):
             # # Assuming 'other' is another Factor.
             factor, other = self.extend_and_reorder(factor, other)
 
-            with warnings.catch_warnings(record=True) as w:
+            with warnings.catch_warnings(record=True):
                 # Cause all warnings to always be triggered.
                 warnings.simplefilter("always")
 
@@ -493,10 +489,10 @@ class Factor(object):
 
         try:
             return self.name_to_number[RV][state]
-        except:
-            print(f'self.name_to_number: {self.name_to_number}')
-            print(f'RV: {RV}')
-            print(f'state: {state}')
+        except Exception:
+            # print(f'self.name_to_number: {self.name_to_number}')
+            # print(f'RV: {RV}')
+            # print(f'state: {state}')
             raise
 
     def get(self, **kwargs):
@@ -696,8 +692,12 @@ class Factor(object):
         return pd.Series(self.values.reshape(-1), index=idx)
 
     @staticmethod
-    def index_to_states(idx):
-        """Create a state dict from a pandas.Index or MultiIndex."""
+    def index_to_states(idx: Union[pd.Index, pd.MultiIndex]) -> dict:
+        """Create a state dict from a pandas.Index or MultiIndex.
+
+        Note that this may return the states in different order since
+        pandas doesn't provide a way to order level values.
+        """
         if isinstance(idx, pd.MultiIndex):
             states = {i.name: list(i) for i in idx.levels}
         else:
@@ -778,4 +778,3 @@ class Factor(object):
 
         values = np.nan_to_num(total.values, nan=complete_value)
         return Factor(values, states=states)
-

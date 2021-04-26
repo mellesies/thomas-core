@@ -8,7 +8,6 @@ import lark
 
 from ..util import flatten
 
-from ..factor import Factor
 from ..cpt import CPT
 from .. import bayesiannetwork
 
@@ -46,6 +45,8 @@ GRAMMAR = r"""
     %import common.WS
     %ignore WS
 """
+
+
 class BasicTransformer(lark.Transformer):
     """Transform lark.Tree into basic, Python native, objects."""
 
@@ -59,7 +60,6 @@ class BasicTransformer(lark.Transformer):
         net = [f for f in flattened if f['type'] == 'net'][0]
         nodes = [f for f in flattened if f['type'] == 'node']
         potentials = [f for f in flattened if f['type'] == 'potential']
-
 
         net['nodes'] = {n['name']: n for n in nodes}
         net['potentials'] = {p['name']: p for p in potentials}
@@ -106,7 +106,7 @@ class BasicTransformer(lark.Transformer):
             'type': 'node',
             'name': name,
             'class': 'DiscreteNetworkNode',
-            'position': [0,0],
+            'position': [0, 0],
         }
         node.update(properties)
 
@@ -197,9 +197,11 @@ def _parse(filename):
 
     return tree
 
+
 def _transform(tree):
     transformer = BasicTransformer()
     return transformer.transform(tree)
+
 
 def _create_structure(tree):
     # dict, indexed by node name
@@ -244,9 +246,12 @@ def _create_structure(tree):
             columns = pd.Index(node_states, name=name)
             data = data.reshape(-1, len(columns))
             df = pd.DataFrame(data, index=index, columns=columns)
+            stacked = df.stack()
 
+            # This keeps the index order
             cpt = CPT(
-                Factor.from_series(df.stack()),
+                stacked,
+                states={n: states[n] for n in stacked.index.names},
                 conditioned=[name],
             )
 
@@ -278,6 +283,7 @@ def _create_structure(tree):
 
     return network
 
+
 def _create_bn(structure):
     """Create a BayesianNetwork from a previously created structure."""
     nodes = []
@@ -298,6 +304,7 @@ def _create_bn(structure):
 
     edges = structure['edges']
     return bayesiannetwork.BayesianNetwork(structure['name'], nodes, edges)
+
 
 def read(filename):
     """Parse the OOBN file and transform it into a sensible dictionary."""

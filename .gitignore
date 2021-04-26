@@ -13,3 +13,5 @@ thomas/core/.vscode
 htmlcov
 build
 *.
+.coverage
+*.bak
