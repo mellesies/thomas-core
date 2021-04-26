@@ -54,9 +54,6 @@ COPY utest.py ${THOMAS_DIR}/thomas-core
 COPY test.sh ${THOMAS_DIR}/thomas-core
 COPY README.md ${THOMAS_DIR}/thomas-core
 
-WORKDIR ${THOMAS_DIR}/
-RUN pip install ./thomas-core[jupyter-dev,client]
-
 # Make sure files are owned by
 RUN chown -R ${NB_UID}:${USER} ${HOME}
 RUN chown -R ${NB_UID}:${USER} ${THOMAS_DIR}/thomas-core/
@@ -64,7 +61,9 @@ RUN chown -R ${NB_UID}:${USER} ${THOMAS_DIR}/thomas-core/
 USER ${USER}
 ENV PATH="${PATH}:${USER}/.local/bin"
 
-# CMD /bin/bash
+WORKDIR ${THOMAS_DIR}/
+RUN pip install ./thomas-core[jupyter-dev,client]
+
 WORKDIR ${THOMAS_DIR}/thomas-core
 RUN ./utest.py
 

@@ -42,7 +42,7 @@ docker-run-browser:
 	docker run -d --rm -it -p 9999:8888 --name thomas-core thomas-core:${TAG}
 
 	# Open a browser
-	sleep 2
+	sleep 3
 	open http://localhost:9999/lab
 
 docker-stop:
