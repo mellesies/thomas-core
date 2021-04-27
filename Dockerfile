@@ -34,7 +34,7 @@ RUN apt-get install -y nodejs
 
 # Install yarn properly. The version of yarn that's available by default is
 # just weird.
-RUN apt remove cmdtest
+RUN apt-get remove cmdtest
 RUN npm install --global yarn
 
 # ------------------------------------------------------------------------------
@@ -58,6 +58,9 @@ COPY README.md ${THOMAS_DIR}/thomas-core
 RUN chown -R ${NB_UID}:${USER} ${HOME}
 RUN chown -R ${NB_UID}:${USER} ${THOMAS_DIR}/thomas-core/
 
+# ------------------------------------------------------------------------------
+# Run as ${USER} !
+# ------------------------------------------------------------------------------
 USER ${USER}
 ENV PATH="${PATH}:${USER}/.local/bin"
 
@@ -68,4 +71,5 @@ WORKDIR ${THOMAS_DIR}/thomas-core
 RUN ./utest.py
 
 # WORKDIR ${HOME}/notebooks
+RUN jupyter serverextension enable jupyterlab
 CMD jupyter lab --ip=0.0.0.0 --allow-root --LabApp.token=''
