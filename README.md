@@ -5,39 +5,62 @@
 # Thomas
 Very simple (almost naive ;-) bayesian network implementation.
 
-Contains examples (`thomas.core.examples`) from the book "Probabilistic Graphical Models: Principles and Techniques" from Koller and Friedman ([PGM Stanford](http://pgm.stanford.edu)) and from the lecture by [Adnan Darwiche](http://web.cs.ucla.edu/~darwiche/) on YouTube:
-* [6a. Inference by Variable Elimination I (Chapter 6)](https://www.youtube.com/watch?v=7oRReD_ayWo).
-* [6b. Inference by Variable Elimination II (Chapter 6)](https://www.youtube.com/watch?v=QSSmx1ndUvg).
+Contains examples (`thomas.core.examples`) from the book "Probabilistic
+Graphical Models: Principles and Techniques" from Koller and Friedman ([PGM
+Stanford](http://pgm.stanford.edu)) and from the lecture by [Adnan
+Darwiche](http://web.cs.ucla.edu/~darwiche/) on YouTube:
+* [6a. Inference by
+Variable Elimination I (Chapter
+6)](https://www.youtube.com/watch?v=7oRReD_ayWo).
+* [6b. Inference by Variable
+Elimination II (Chapter 6)](https://www.youtube.com/watch?v=QSSmx1ndUvg).
 
-## Installation
+## Table of contents
+1. [Regular Installation](#regular-installation)
+2. [Alternatives](#alternatives)
+3. [Usage](#usage)
+4. [Development installation](#development-installation)
 
-### Normal
-To install from PyPI use `pip`:
+![img](https://raw.githubusercontent.com/mellesies/thomas-jupyter-widget/master/img/screenshot.png)
 
-```bash
-    pip install thomas-core
-```
-
-### Development
-To do a development install:
-
-```bash
-    git clone https://github.com/mellesies/thomas-core
-    cd thomas-core
-    pip install -e .
-```
-
-### Docker
-A Docker image is available for easy deployment. The following command will
-start a JupyterLab server, listening on `localhost`, port `8888`:
+# Regular installation
+To install the latest version from PyPI:
 
 ```bash
-    docker run --rm -it -p 8888:8888 mellesies/thomas-core
+pip install thomas-core
 ```
 
+### Additional packages
+If you're using JupyterLab, I recommend also installing the Widget that can display Bayesian Networks.
 
-## Usage
-To get started with querying a network, try the following:
+```bash
+pip install thomas-jupyter-widget
+```
+
+See the [repository](https://github.com/mellesies/thomas-jupyter-widget) (or the screenshot above) for details on how to use it.
+
+# Alternatives
+If you don't feel like installing thomas locally, there are two alternative ways to give the platform a try.
+
+## Docker
+If you have docker available, the following command will start a JupyterLab server listening on [http://localhost:8888](http://localhost:8888):
+
+```bash
+docker run --rm -it -p 8888:8888 mellesies/thomas-core
+```
+
+## Binder
+[mybinder.org](https://mybinder.org) courteously provides an environment where you can try out Thomas without any local installation. Just click [here](https://mybinder.org/v2/gh/mellesies/thomas-core/master?urlpath=%2Flab%2Ftree%2Fnotebooks) (or the badge above) and after some waiting, JupyterLab should open in your browser.
+
+You can also directly open one of the example notebooks:
+* [notebooks/1. Factors.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F1.%20Factors.ipynb)
+* [notebooks/2. Bags of factors.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F2.%20Bags%20of%20factors.ipynb)
+* [notebooks/3. Conditional probability tables.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F3.%20Conditional%20probability%20tables.ipynb)
+* [notebooks/4. Bayesian Networks.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F4.%20Bayesian%20Networks.ipynb)
+
+
+# Usage
+To get started with querying a network, launch `python3` and try the following:
 ```python
 from thomas.core import examples
 
@@ -66,8 +89,13 @@ print(Gs.P('S|I=i1'))
 # dtype: float64
 ```
 
-Alternatively, you can have a go at the example notebooks through [Binder](https://mybinder.org):
-* [notebooks/1. Factors.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F1.%20Factors.ipynb)
-* [notebooks/2. Bags of factors.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F2.%20Bags%20of%20factors.ipynb)
-* [notebooks/3. Conditional probability tables.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F3.%20Conditional%20probability%20tables.ipynb)
-* [notebooks/4. Bayesian Networks.ipynb](https://mybinder.org/v2/gh/mellesies/thomas-core/master?filepath=notebooks%2F4.%20Bayesian%20Networks.ipynb)
+
+# Development installation
+To do a development install:
+
+```bash
+git clone https://github.com/mellesies/thomas-core
+cd thomas-core
+pip install -e .
+```
+
