@@ -65,9 +65,13 @@ USER ${USER}
 ENV PATH="${PATH}:${USER}/.local/bin"
 
 WORKDIR ${THOMAS_DIR}/
-RUN pip install ./thomas-core[jupyter-dev,client]
+RUN pip install ./thomas-core
 
-WORKDIR ${THOMAS_DIR}/thomas-core
+# Install the BayesianNetworkWidget (for use in JupyterLab) and the client.
+# These are referenced
+RUN pip install git+https://github.com/mellesies/thomas-jupyter-widget@jupyter3
+RUN pip install git+https://github.com/mellesies/thomas-client
+
 RUN ./utest.py
 
 # WORKDIR ${HOME}/notebooks

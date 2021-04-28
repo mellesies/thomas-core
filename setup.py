@@ -64,12 +64,13 @@ setup(
         'pandas>=1',
         'termcolor',
     ],
-    extras_require={
-        "jupyter-dev": [
-            "thomas-jupyter-widget @ git+https://github.com/mellesies/thomas-jupyter-widget@jupyter3",
-        ],
-        "client": [
-            "thomas-client @ git+https://github.com/mellesies/thomas-client",
-        ],
-    }
+    # This is incompatible with publication on PyPI ...
+    # extras_require={
+    #     "jupyter-dev": [
+    #         "thomas-jupyter-widget @ git+https://github.com/mellesies/thomas-jupyter-widget@jupyter3",
+    #     ],
+    #     "client": [
+    #         "thomas-client @ git+https://github.com/mellesies/thomas-client",
+    #     ],
+    # }
 )
