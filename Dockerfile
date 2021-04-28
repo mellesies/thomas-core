@@ -64,8 +64,8 @@ RUN chown -R ${NB_UID}:${USER} ${THOMAS_DIR}/thomas-core/
 USER ${USER}
 ENV PATH="${PATH}:${USER}/.local/bin"
 
-WORKDIR ${THOMAS_DIR}/
-RUN pip install ./thomas-core
+WORKDIR ${THOMAS_DIR}/thomas-core
+RUN pip install -e .
 
 # Install the BayesianNetworkWidget (for use in JupyterLab) and the client.
 # These are referenced
