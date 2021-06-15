@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
 """BayesianNetwork"""
+from __future__ import annotations
+
 from functools import reduce
 
 import numpy as np
@@ -17,6 +18,8 @@ from ...factors.jpt import JPT
 from .node import Node
 from .discrete_node import DiscreteNetworkNode
 
+from ...learn.structure.greedy import greedy_network_learning, compute_cpts_network
+
 from ..base import ProbabilisticModel
 from ..bag import Bag
 from ..jpt import JPTModel
@@ -29,18 +32,18 @@ log = logging.getLogger(__name__)
 
 
 class BayesianNetwork(ProbabilisticModel):
-    """A Bayesian Network (BN) consistst of Nodes and directed Edges.
+    """A Bayesian Network (BN) consists of Nodes and directed Edges.
 
     A BN is essentially a Directed Acyclic Graph (DAG) where each Node
     represents a Random Variable (RV) and is associated with a conditional
-    probability theable (CPT). A CPT can only have a *single* conditioned
+    probability table (CPT). A CPT can only have a *single* conditioned
     variable; zero or more *conditioning*  variables are allowed. Conditioning
     variables are represented as the Node's parents.
 
     BNs can be used for inference. To do this efficiently, the BN first
     constructs a JunctionTree (or JoinTree).
 
-    Because of the relation between the probaility distribution (expressed as a
+    Because of the relation between the probability distribution (expressed as a
     set of CPTs) and the graph structure, it is possible to instantiate a BN
     from a list of CPTs.
     """
@@ -591,6 +594,18 @@ class BayesianNetwork(ProbabilisticModel):
             RV = cpt.conditioned[0]
             bn[RV].cpt = cpt
 
+        return bn
+
+    @classmethod
+    def from_data(cls, name: str, df: pd.DataFrame,
+                  degree_network: int = 2) -> BayesianNetwork:
+        """Learn a BN structure and parameters from data.
+
+        Uses greedy structure learning.
+        """
+        network = greedy_network_learning(df, degree_network)
+        cpts = compute_cpts_network(df, network)
+        bn = BayesianNetwork.from_CPTs(name, cpts.values())
         return bn
 
     # --- visualization ---

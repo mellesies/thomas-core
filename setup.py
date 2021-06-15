@@ -62,15 +62,7 @@ setup(
         'networkx>=2.4',
         'numpy>=1.18',
         'pandas>=1',
+        'scikit-learn',
         'termcolor',
     ],
-    # This is incompatible with publication on PyPI ...
-    # extras_require={
-    #     "jupyter-dev": [
-    #         "thomas-jupyter-widget @ git+https://github.com/mellesies/thomas-jupyter-widget@jupyter3",
-    #     ],
-    #     "client": [
-    #         "thomas-client @ git+https://github.com/mellesies/thomas-client",
-    #     ],
-    # }
 )
