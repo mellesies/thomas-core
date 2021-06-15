@@ -1,21 +1,9 @@
 # -*- coding: utf-8 -*-
-import os
 import unittest
-import doctest
 import logging
-import itertools
-import json
 
-from tempfile import gettempdir
-
-import pandas as pd
-
-import thomas.core
 from thomas.core import error
-from thomas.core.cpt import CPT
-from thomas.core.bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
 from thomas.core import examples
-
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +33,7 @@ class TestJunctionTree(unittest.TestCase):
         """Test tree.draw()."""
         try:
             self.Gs.jt.draw()
-        except Exception as e:
+        except Exception:
             self.fail("Drawing the tree raised an exception!?")
 
     def test_edge_repr(self):

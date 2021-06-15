@@ -8,8 +8,8 @@ import lark
 
 from ..util import flatten
 
-from ..cpt import CPT
-from .. import bayesiannetwork
+from ..factors.cpt import CPT
+from ..models import bn
 
 GRAMMAR = r"""
     start: group+
@@ -233,8 +233,11 @@ def _create_structure(tree):
         states.update(parent_states)
 
         # Get the data for the prior/conditional probability distribution.
-        data = potential['data']
-        data = np.array(data)
+        # In BNs that do not have a CPT yet, the 'data' key will be missing.
+        data = potential.get('data', 1)
+
+        if not isinstance(data, int):
+            data = np.array(data)
 
         # If there are parents, it's a CPT
         if len(node_parents) > 0:
@@ -257,11 +260,14 @@ def _create_structure(tree):
 
         # Else, it's a probability table
         else:
-            cpt = CPT(
-                data,
-                conditioned=[name],
-                states=states
-            )
+            try:
+                cpt = CPT(
+                    data,
+                    conditioned=[name],
+                    states=states
+                )
+            except Exception:
+                raise
 
         # Get the data for the dataframe
         nodes[name] = {
@@ -296,14 +302,14 @@ def _create_bn(structure):
 
         cpt = node_properties['CPT']
 
-        constructor = getattr(bayesiannetwork, node_properties['class'])
+        constructor = getattr(bn, node_properties['class'])
 
         n = constructor(RV, name, states, description, cpt)
         n.position = position
         nodes.append(n)
 
     edges = structure['edges']
-    return bayesiannetwork.BayesianNetwork(structure['name'], nodes, edges)
+    return bn.BayesianNetwork(structure['name'], nodes, edges)
 
 
 def read(filename):
@@ -320,5 +326,3 @@ def read(filename):
     structure = _create_structure(transformed)
 
     return _create_bn(structure)
-
-

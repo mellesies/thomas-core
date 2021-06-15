@@ -1,14 +1,11 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
 import unittest
-import doctest
 import logging
 
 import numpy as np
 import pandas as pd
 
 import thomas
-from thomas.core.factor import Factor, mul
+from thomas.core.factors.factor import Factor, mul
 from thomas.core import examples
 from thomas.core import error
 
@@ -22,7 +19,7 @@ class TestFactor(unittest.TestCase):
 
     def test_creation(self):
         """Test creating Factors."""
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(Exception):
             Factor(0)
 
         fA = Factor(
@@ -309,7 +306,7 @@ class TestFactor(unittest.TestCase):
 
     def test_from_data(self):
         """Test creating an (empirical) distribution from data."""
-        filename = thomas.core.get_pkg_data('dataset_17_2.csv')
+        filename = thomas.core.get_pkg_filename('dataset_17_2.csv')
         df = pd.read_csv(filename, sep=';')
 
         scope = ['H', 'S', 'E']

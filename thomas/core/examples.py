@@ -5,23 +5,22 @@ Includes examples from ...
 - Koller & Friedman's "Probabilistic Graphical Models"
 - Adnan Darwiche's "Modeling and Reasoning with Bayesian Networks"
 """
-import os
-
-import numpy as np
-import pandas as pd
-
 import thomas.core
 import thomas.core.reader.oobn
 
-from .factor import Factor
-from .cpt import CPT
-from .jpt import JPT
+from .factors.factor import Factor
+from .factors.cpt import CPT
+from .factors.jpt import JPT
 
-from .bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
+from .models.bn import BayesianNetwork
+from .models.bn import DiscreteNetworkNode
+from .models.jpt import JPTModel
+
 
 def subset(full_dict, keys):
     """Return a subset of a dict."""
     return {k: full_dict[k] for k in keys}
+
 
 def get_student_CPTs():
     """Return the CPTs for the Student Bayesian Network."""
@@ -30,7 +29,7 @@ def get_student_CPTs():
         'I': ['i0', 'i1'],
         'S': ['s0', 's1'],
         'D': ['d0', 'd1'],
-        'G': ['g1', 'g2','g3'],
+        'G': ['g1', 'g2', 'g3'],
         'L': ['l0', 'l1'],
     }
 
@@ -72,15 +71,18 @@ def get_student_CPTs():
 
     return P
 
+
 def get_student_network_from_CPTs():
     """Return the Student Bayesian Network."""
     P = get_student_CPTs()
     return BayesianNetwork.from_CPTs('Student', P.values())
 
+
 def get_student_network():
     """Return the Student Bayesian Network."""
-    filename = thomas.core.get_pkg_data('student.json')
+    filename = thomas.core.get_pkg_filename('student.json')
     return BayesianNetwork.open(filename)
+
 
 def get_sprinkler_factors():
     """Return the factors for the Sprinkler Bayesian Network.
@@ -131,6 +133,7 @@ def get_sprinkler_factors():
 
     return [fA, fB_A, fC_A, fD_BC, fE_C]
 
+
 def get_sprinkler_jpt():
     """Return the JPT for the Sprinkler network.
 
@@ -151,7 +154,8 @@ def get_sprinkler_jpt():
             0.00045, 0, 0.24300, 0, 0.02700, 0.00560, 0.00240,
             0.00140, 0.00060, 0, 0, 0, 0.090]
 
-    return JPT(data, states)
+    return JPTModel(JPT(data, states))
+
 
 def get_sprinkler_network_from_factors():
     """Return the Sprinkler Bayesian Network."""
@@ -159,11 +163,13 @@ def get_sprinkler_network_from_factors():
     CPTs = [CPT(f) for f in factors]
     return BayesianNetwork.from_CPTs('Sprinkler', CPTs)
 
+
 def get_sprinkler_network():
     """Return the Sprinkler Network.
     """
-    filename = thomas.core.get_pkg_data('sprinkler.json')
+    filename = thomas.core.get_pkg_filename('sprinkler.json')
     return BayesianNetwork.open(filename)
+
 
 def get_example7_factors():
     """Return the factors for a very simple BN.
@@ -197,6 +203,7 @@ def get_example7_factors():
 
     return fA, fB_A, fC_B
 
+
 def get_example7_network():
     """Return a very simple BN.
 
@@ -215,6 +222,7 @@ def get_example7_network():
     )
 
     return bn
+
 
 def get_example17_2_factors():
     """Return the factors for a very simple BN.
@@ -245,6 +253,7 @@ def get_example17_2_factors():
 
     return fH, fS_H, fE_H
 
+
 def get_example17_2_network():
     """Return the network Darwiche's chapter 17.2."""
     fH, fS_H, fE_H = get_example17_2_factors()
@@ -264,6 +273,7 @@ def get_example17_2_network():
     )
 
     return bn
+
 
 def get_example17_3_factors():
     """..."""
@@ -300,6 +310,7 @@ def get_example17_3_factors():
 
     return fA, fB_A, fC_A, fD_B
 
+
 def get_example17_3_network():
     """..."""
     fA, fB_A, fC_A, fD_B = get_example17_3_factors()
@@ -324,9 +335,10 @@ def get_example17_3_network():
 
     return bn
 
+
 def get_lungcancer_network():
     """Load 'lungcancer.oobn'."""
-    # filename = thomas.core.get_pkg_data('lungcancer.oobn')
+    # filename = thomas.core.get_pkg_filename('lungcancer.oobn')
     # return thomas.core.reader.oobn.read(filename)
-    filename = thomas.core.get_pkg_data('lungcancer.json')
+    filename = thomas.core.get_pkg_filename('lungcancer.json')
     return BayesianNetwork.open(filename)

@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
-import doctest
 import logging
 
-
-from thomas.core.bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
+from thomas.core.models.bn import BayesianNetwork, DiscreteNetworkNode
 from thomas.core import examples
 
 log = logging.getLogger(__name__)
@@ -30,5 +28,3 @@ class TestSerialization(unittest.TestCase):
         unserialized = BayesianNetwork.from_dict(serialized)
 
         self.assertDictEqual(serialized, unserialized.as_dict())
-
-

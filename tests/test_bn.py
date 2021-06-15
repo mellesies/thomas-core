@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import unittest
-import doctest
 import logging
 import itertools
-import json
 
 from tempfile import gettempdir
 
@@ -12,8 +10,9 @@ import pandas as pd
 import numpy as np
 
 import thomas.core
-from thomas.core.cpt import CPT
-from thomas.core.bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
+from thomas.core.factors.cpt import CPT
+from thomas.core.models.bn import BayesianNetwork
+from thomas.core.models.bn.discrete_node import DiscreteNetworkNode
 from thomas.core import examples
 
 
@@ -291,7 +290,12 @@ class TestBayesianNetwork(unittest.TestCase):
             use_VE=True
         )
 
-        self.assertTrue(IS1.equals(IS2))
+        try:
+            self.assertTrue(IS1.equals(IS2))
+        except Exception:
+            print('Using JT:', IS1)
+            print('Using VE:', IS2)
+            raise
 
     def test_ML_estimation(self):
         """Test ML estimation using a simple dataset."""
@@ -313,7 +317,7 @@ class TestBayesianNetwork(unittest.TestCase):
         bn = BayesianNetwork('Example 17.2', nodes, edges)
 
         # Load the data
-        filename = thomas.core.get_pkg_data('dataset_17_2.csv')
+        filename = thomas.core.get_pkg_filename('dataset_17_2.csv')
         df = pd.read_csv(filename, sep=';')
 
         # Do the learning
@@ -372,7 +376,7 @@ class TestBayesianNetwork(unittest.TestCase):
         bn = examples.get_example17_3_network()
 
         # Load the data
-        filename = thomas.core.get_pkg_data('dataset_17_3.csv')
+        filename = thomas.core.get_pkg_filename('dataset_17_3.csv')
         df = pd.read_csv(filename, sep=';').set_index('Case')
 
         # Basic sanity check

@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
-import doctest
 import logging
 
-from thomas.core.bag import Bag
+from thomas.core.models.bag import Bag
 from thomas.core import examples
 
 log = logging.getLogger(__name__)
@@ -31,7 +30,7 @@ class TestBag(unittest.TestCase):
         bag = Bag('Sprinkler', factors)
 
         # Compute the prior over C
-        fC = bag.eliminate(['C'])
+        fC = bag.variable_elimination(['C'])
 
         self.assertAlmostEqual(fC['c0'], 0.48, places=2)
         self.assertAlmostEqual(fC['c1'], 0.52, places=2)
@@ -44,7 +43,7 @@ class TestBag(unittest.TestCase):
         bag = Bag('Sprinkler', factors)
 
         # Compute the joint over A and C
-        fAC = bag.eliminate(['A', 'C'])
+        fAC = bag.variable_elimination(['A', 'C'])
 
         self.assertAlmostEqual(fAC['a0', 'c0'], 0.36, places=2)
         self.assertAlmostEqual(fAC['a0', 'c1'], 0.04, places=2)
@@ -58,7 +57,7 @@ class TestBag(unittest.TestCase):
         bag = Bag('Sprinkler', factors)
 
         # Compute the (unnormalized) factor over C and A=a1
-        fC_a1 = bag.eliminate(['C'], {'A': 'a1'})
+        fC_a1 = bag.variable_elimination(['C'], {'A': 'a1'})
 
         self.assertAlmostEqual(fC_a1['c0'], 0.12, places=2)
         self.assertAlmostEqual(fC_a1['c1'], 0.48, places=2)
@@ -71,6 +70,11 @@ class TestBag(unittest.TestCase):
         I = bag.compute_posterior(['I'], {}, [], {})
         self.assertAlmostEqual(I['i0'], 0.70, places=2)
         self.assertAlmostEqual(I['i1'], 0.30, places=2)
+
+        G = bag.compute_posterior(['G'], {}, [], {})
+        self.assertAlmostEqual(G['g1'], 0.3620, places=4)
+        self.assertAlmostEqual(G['g2'], 0.2884, places=4)
+        self.assertAlmostEqual(G['g3'], 0.3496, places=4)
 
         S_i1 = bag.compute_posterior(['S'], {}, [], {'I': 'i1'})
         self.assertAlmostEqual(S_i1['s0'], 0.20, places=2)
@@ -85,12 +89,12 @@ class TestBag(unittest.TestCase):
         self.assertAlmostEqual(G_I['i0', 'g2'], 0.34, places=2)
         self.assertAlmostEqual(G_I['i0', 'g3'], 0.46, places=2)
 
-        s0_i0 = bag.compute_posterior([], {'S': 's0'}, [], {'I':'i0'})
-        s1_i0 = bag.compute_posterior([], {'S': 's1'}, [], {'I':'i0'})
+        s0_i0 = bag.compute_posterior([], {'S': 's0'}, [], {'I': 'i0'})
+        s1_i0 = bag.compute_posterior([], {'S': 's1'}, [], {'I': 'i0'})
         self.assertAlmostEqual(s0_i0, 0.95, places=2)
         self.assertAlmostEqual(s1_i0, 0.05, places=2)
 
-        s0G_i0 = bag.compute_posterior(['G'], {'S': 's0'}, [], {'I':'i0'})
+        s0G_i0 = bag.compute_posterior(['G'], {'S': 's0'}, [], {'I': 'i0'})
         self.assertEqual(len(s0G_i0), 3)
 
     @unittest.skip('Not yet')
@@ -132,7 +136,7 @@ class TestBag(unittest.TestCase):
         factors = examples.get_student_CPTs()
         bag = Bag('Student', list(factors.values()))
 
-        jpt = bag.eliminate(list(bag.scope)).normalize()
+        jpt = bag.variable_elimination(list(bag.scope)).normalize()
         self.assertAlmostEqual(jpt.sum(), 1, places=5)
 
     def test_as_dict(self):

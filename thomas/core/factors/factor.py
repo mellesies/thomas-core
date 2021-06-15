@@ -1,7 +1,9 @@
-# -*- coding: utf-8 -*-
 """Factor: the basis for all reasoning."""
-from typing import Union
+from __future__ import annotations
 
+from typing import List, Dict, Union
+
+from functools import reduce
 from itertools import product
 import warnings
 import logging
@@ -9,26 +11,16 @@ import logging
 import numpy as np
 import pandas as pd
 
+from thomas.core import options
 from thomas.core import error
+# from thomas.core.util import isiterable
 
-log = logging.getLogger('thomas.factor')
-
-
-# ------------------------------------------------------------------------------
-# Helper functions.
-# ------------------------------------------------------------------------------
-def isiterable(obj):
-    """Return True iff an object is iterable."""
-    try:
-        iter(obj)
-    except Exception:
-        return False
-    else:
-        return True
+log = logging.getLogger(__name__)
 
 
+# FIXME: refactor to Factor.multiply
 def mul(x1, x2):
-    """Multiply two Factors with each other.
+    """Multiply two Factors (or scalars) with each other.
 
     Helper function for functools.reduce().
     """
@@ -41,15 +33,9 @@ def mul(x1, x2):
     else:
         result = x1 * x2
 
-    # if isinstance(result, Factor):
-    #     result = result.reorder_scope()
-
     return result
 
 
-# ------------------------------------------------------------------------------
-# FactorIndex
-# ------------------------------------------------------------------------------
 class FactorIndex(object):
     """Index for Factors."""
 
@@ -67,9 +53,6 @@ class FactorIndex(object):
         return list(product(*states.values()))
 
 
-# ------------------------------------------------------------------------------
-# Factor
-# ------------------------------------------------------------------------------
 class Factor(object):
     """Factor for discrete variables.
 
@@ -79,7 +62,8 @@ class Factor(object):
     See https://github.com/pgmpy/pgmpy/blob/dev/pgmpy/factors/discrete/DiscreteFactor.py
     """
 
-    def __init__(self, data, states):
+    def __init__(self, data: Union[int, float, np.array],
+                 states: Dict[str, str] = None):
         """Initialize a new Factor.
 
         Args:
@@ -100,12 +84,15 @@ class Factor(object):
 
         # Copy & make sure we're dealing with a numpy array
         data = np.array(data, dtype=float)
+        # data = np.array(data, dtype=np.longdouble)
 
         cardinality = [len(i) for i in states.values()]
         expected_size = np.product(cardinality)
 
         if data.size != expected_size:
-            raise ValueError(f"'data' must be of size/length: {expected_size}")
+            msg = f"Trying to create Factor with states {states}. "
+            msg += f"'data' has size {data.size}, which should be: {expected_size}"
+            raise ValueError(msg)
 
         # Set self.states and create indices/mappings.
         self._set_states(states)
@@ -116,12 +103,15 @@ class Factor(object):
 
     def __repr__(self):
         """repr(f) <==> f.__repr__()"""
+        precision = options.get('precision', 4)
+
         if self.states:
-            with pd.option_context('precision', 3):
+            with pd.option_context('precision', precision):
                 s = f'{self.display_name}\n{repr(self.as_series())}'
             return s
 
-        return f'{self.display_name}: {self.values:.2f}'
+        tpl = '{self.display_name}: {' + 'self.values:.{}f'.format(precision) + '}'
+        return tpl.format(**locals())
 
     def __eq__(self, other):
         """f1 == f2 <==> f1.__eq__(f2)"""
@@ -130,6 +120,10 @@ class Factor(object):
     def __len__(self):
         """len(factor) <==> factor.__len__()"""
         return self.width
+
+    def __contains__(self, var):
+        """x in y <--> y.__contains__(x)"""
+        return var in self.scope
 
     def __getitem__(self, keys):
         """factor[x] <==> factor.__getitem__(x)"""
@@ -303,7 +297,6 @@ class Factor(object):
         shared_vars = list(set(other.variables).intersection(factor.variables))
         shared_states = {RV: other.states[RV] for RV in shared_vars}
 
-
         if not len(shared_vars):
             raise error.IncompatibleScopeError(factor.scope, other.scope)
 
@@ -322,7 +315,10 @@ class Factor(object):
 
             # `product` creates a list of tuples: combinations of shared_indices
             # and remaining_indices. by adding those we get the full index.
-            _combine_indices = lambda x: x[0] + x[1]
+            # _combine_indices = lambda x: x[0] + x[1]
+            def _combine_indices(x):
+                return x[0] + x[1]
+
             indices = list(
                 map(
                     _combine_indices,
@@ -334,7 +330,6 @@ class Factor(object):
                 **shared_states,
                 **{RV: factor.states[RV] for RV in remaining_vars}
             }
-
 
         else:
             # if there are no other variables in scope, we can just use the
@@ -408,6 +403,13 @@ class Factor(object):
         # Since factor was modified in place, returning it is technically
         # unnecessary   .
         return factor, other
+
+    @staticmethod
+    def multiply(self, factors: List[Factor]) -> Factor:
+        """Multiply a set of factors ..."""
+        msg = "Argument 'factors' should be a List[Factor]"
+        assert all([isinstance(f, Factor) for f in factors]), msg
+        return reduce(mul, factors)
 
     def copy(self):
         """Return a copy of this Factor."""
@@ -617,10 +619,10 @@ class Factor(object):
             raise error.NotInScopeError(variable_set, scope_set)
 
         # Find the indices of the variables to sum out
-        var_indexes = [factor.scope.index(var) for var in variables]
+        var_indexes = [factor.scope.index(var) for var in variable_set]
 
         # Remove the variables from the factor
-        factor.del_state_names(variables)
+        factor.del_state_names(variable_set)
 
         # Sum over the variables we just deleted. This can reduce the result
         # to a scalar.
@@ -684,12 +686,19 @@ class Factor(object):
 
     def as_series(self):
         """Return a pandas.Series."""
+        log.debug("Factor.as_series()")
+
         idx = pd.MultiIndex.from_product(
             self.states.values(),
             names=self.states.keys()
         )
 
-        return pd.Series(self.values.reshape(-1), index=idx)
+        data = self.values.reshape(-1)
+
+        log.debug(f"  idx: {idx}")
+        log.debug(f"  data: {data}")
+
+        return pd.Series(data, index=idx)
 
     @staticmethod
     def index_to_states(idx: Union[pd.Index, pd.MultiIndex]) -> dict:
@@ -753,8 +762,8 @@ class Factor(object):
             cols (list): columns in the data frame to use. If `None`, all
                 columns are used.
             states (dict): list of allowed states for each random
-                variable, indexed by name. If variable_states is None, `jpt`
-                should be a pandas.Series with a proper Index/MultiIndex.
+                variable, indexed by name. If `states` is None it will be
+                determined from the data.
             complete_value (int): Base (count) value to use for combinations of
                 variable states in the dataset.
 
@@ -766,7 +775,7 @@ class Factor(object):
         counts = subset.groupby(cols).size()
 
         if states is None:
-            # We'll need to try to determine states from the jpt
+            # We'll need to try to determine states from the df
             states = cls.index_to_states(counts.index)
 
         # Create a factor containing *all* combinations set to `complete_value`.

@@ -1,29 +1,17 @@
-# -*- coding: utf-8 -*-
 """Bag: collection of Factors."""
-import os
-from datetime import datetime as dt
-
-from collections import OrderedDict
-
 import numpy as np
-import pandas as pd
-from pandas.core.dtypes.dtypes import CategoricalDtype
 from functools import reduce
 
-import json
+from .base import ProbabilisticModel
+from ..factors.factor import Factor, mul
+from ..factors.cpt import CPT
 
-from .base import ProbabilisticModel, remove_none_values_from_dict
-from .factor import Factor, mul
-from .cpt import CPT
-
-from . import error
+from ..util import remove_none_values_from_dict
 
 import logging
-log = logging.getLogger('thomas')
+log = logging.getLogger(__name__)
 
-# ------------------------------------------------------------------------------
-# Bag
-# ------------------------------------------------------------------------------
+
 class Bag(ProbabilisticModel):
     """Bag of factors."""
 
@@ -67,44 +55,83 @@ class Bag(ProbabilisticModel):
         scope = self._scope(factors)
         return [v for v in scope if v not in Q]
 
-    def eliminate(self, Q, evidence=None):
+    def variable_elimination(self, Q, evidence=None):
         """Perform variable elimination."""
         if evidence is None:
             evidence = {}
 
+        if isinstance(Q, str):
+            Q = [Q]
+
+        log.debug(f"Eliminating {Q} from {self.scope}")
+
         # Initialize the list of factors and apply the evidence
         factors = list(self._factors)
-
-        # factors = [f.keep_values(**evidence) for f in factors]
         factors = [f.set_complement(0, **evidence) for f in factors]
 
         # ordering will contain a list of variables *not* in Q, i.e. the
         # remaining variables from the full distribution.
         ordering = self.find_elimination_ordering(Q, factors)
+        log.debug(f"Found elimination ordering: {ordering}")
 
         # Iterate over the variables in the ordering.
+        log.debug(f"Starting elimination with {len(factors)} factor(s)")
+        for idx, f in enumerate(factors):
+            log.debug(f"  {idx}: {f.scope}")
+
         for X in ordering:
+            log.debug(f"  Eliminating '{X}'")
+
+            related_factors = []
+            unrelated_factors = []
+
             # Find factors that have the current variable 'X' in scope
-            related_factors = [f for f in factors if X in f.scope]
+            for idx, f in enumerate(factors):
+                log.debug(f"  {idx}: Testing if {X} is in scope {f.scope}")
+                if X in f.scope:
+                    log.debug("    --> yep")
+                    related_factors.append(f)
+                else:
+                    unrelated_factors.append(f)
+
+            log.debug(f"  Found {len(related_factors)} factors containing '{X}'")
 
             # Multiply all related factors with each other and sum out 'X'
             new_factor = reduce(mul, related_factors)
             new_factor = new_factor.sum_out(X)
+            log.debug(f"  New factor has scope {new_factor.scope}")
 
             # Replace the factors we have eliminated with the new factor.
-            factors = [f for f in factors if f not in related_factors]
-            factors.append(new_factor)
+            # factors = [f for f in factors if f not in related_factors]
+            factors = unrelated_factors + [new_factor, ]
+
+            log.debug("  Remaining factors:")
+            for idx, f in enumerate(factors):
+                log.debug(f"  {idx}: {f.scope}")
+
+            log.debug("  ---")
+
+        # If len(Q) > 1, there will be multiple factors remaining ...
+        log.debug(f"Done eliminating. {len(factors)} factors remaining:")
+        log.debug(f"  {[f.scope for f in factors]}")
+
+        for f in factors:
+            log.debug(f"  {f}")
 
         result = reduce(mul, factors)
 
         if isinstance(result, Factor):
             try:
                 result = result.reorder_scope(Q)
-                # result.sort_index()
+
             except Exception as e:
                 log.error(f'Could not reorder scope: {e}')
                 log.error(result.scope)
-                pass
+                print(Q)
+        else:
+            msg = "Result of variable elimination is not a Factor, but"
+            msg += f" {type(result)}?"
+            log.error(msg)
 
         return result
 
@@ -126,6 +153,7 @@ class Bag(ProbabilisticModel):
         Returns:
             CPT
         """
+        log.debug(f'Computing posterior probability: {qd}, {qv}, {ed}, {ev}')
         ev = remove_none_values_from_dict(ev)
 
         # Get a list of *all* variables to query
@@ -133,7 +161,7 @@ class Bag(ProbabilisticModel):
         evidence_vars = list(ev.keys()) + ed
 
         # First, compute the joint over the query variables and the evidence.
-        result = self.eliminate(query_vars + ed, ev)
+        result = self.variable_elimination(query_vars + ed, ev)
         result = result.normalize()
 
         # At this point, result's scope is over all query and evidence variables

@@ -1,15 +1,8 @@
-# -*- coding: utf-8 -*-
 import unittest
-import doctest
 import logging
-import itertools
 
-import pandas as pd
-
-import thomas.core
-from thomas.core.bayesiannetwork import BayesianNetwork, DiscreteNetworkNode
+from thomas.core.models.bn import BayesianNetwork
 from thomas.core import examples
-
 
 log = logging.getLogger(__name__)
 

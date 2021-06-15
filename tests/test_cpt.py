@@ -1,17 +1,10 @@
 # -*- coding: utf-8 -*-
 import unittest
-import doctest
 import logging
 
-import json
-
-import pandas as pd
 import numpy as np
 
-import thomas.core
-from thomas.core.factor import Factor
-from thomas.core.cpt import CPT
-from thomas.core.jpt import JPT
+from thomas.core.factors import Factor
 from thomas.core import examples
 
 log = logging.getLogger(__name__)
@@ -30,8 +23,8 @@ class TestCPT(unittest.TestCase):
         # Unfortunately, pandas.DataFrame._repr_html_() returns syntactically
         # invalid html, so we cannot validate the html itself :-(.
         try:
-            html = S_I._repr_html_()
-        except Exception as e:
+            S_I._repr_html_()
+        except Exception:
             self.fail('Creating an HTML representation raised an exception?')
 
     def test_mul_cpt(self):
@@ -96,5 +89,3 @@ class TestCPT(unittest.TestCase):
         CPTs = examples.get_student_CPTs()
         G_ID = CPTs['G']
         self.assertIsInstance(G_ID.as_factor(), Factor)
-
-

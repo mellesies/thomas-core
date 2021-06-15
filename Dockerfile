@@ -69,8 +69,10 @@ RUN pip install -e .
 
 # Install the BayesianNetworkWidget (for use in JupyterLab) and the client.
 # These are referenced
-RUN pip install git+https://github.com/mellesies/thomas-jupyter-widget@jupyter3
-RUN pip install git+https://github.com/mellesies/thomas-client
+# RUN pip install git+https://github.com/mellesies/thomas-jupyter-widget@jupyter3
+# RUN pip install git+https://github.com/mellesies/thomas-client
+RUN pip install thomas-jupyter-widget
+RUN pip install thomas-client
 
 RUN ./utest.py
 

@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
-import doctest
 import logging
 
-from thomas.core.base import ProbabilisticModel
-from thomas.core import examples
+from thomas.core.models.base import ProbabilisticModel
 
 log = logging.getLogger(__name__)
 
@@ -14,5 +12,5 @@ class TestProbabilisticModel(unittest.TestCase):
 
         model = ProbabilisticModel()
 
-        with self.assertRaises(NotImplementedError) as context:
+        with self.assertRaises(NotImplementedError):
             model.compute_posterior([], {}, [], {})

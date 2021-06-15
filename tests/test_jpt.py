@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 import unittest
-import doctest
 import logging
 
 import json
@@ -8,8 +6,10 @@ import json
 import pandas as pd
 
 import thomas.core
-from thomas.core.cpt import CPT
-from thomas.core.jpt import JPT
+from thomas.core.factors.cpt import CPT
+from thomas.core.factors.jpt import JPT
+from thomas.core.models.jpt import JPTModel
+
 from thomas.core import examples
 
 log = logging.getLogger(__name__)
@@ -37,11 +37,11 @@ class TestJPT(unittest.TestCase):
 
     def test_from_data(self):
         """Test creating an (empirical) distribution from data."""
-        filename = thomas.core.get_pkg_data('dataset_17_2.csv')
+        filename = thomas.core.get_pkg_filename('dataset_17_2.csv')
         df = pd.read_csv(filename, sep=';')
 
         scope = ['H', 'S', 'E']
-        jpt = JPT.from_data(df, cols=scope)
+        jpt = JPTModel(JPT.from_data(df, cols=scope))
 
         self.assertEqual(jpt.sum(), 1)
         self.assertEqual(jpt['T', 'T', 'T'], 2/16)
@@ -73,7 +73,7 @@ class TestJPT(unittest.TestCase):
         self.assertAlmostEqual(B_A['a0', 'b0'], 0.25, places=5)
 
         # Get a known CPT from disk
-        filename = thomas.core.get_pkg_data('sprinkler-D_BC.json')
+        filename = thomas.core.get_pkg_filename('sprinkler-D_BC.json')
         with open(filename) as fp:
             data = json.load(fp)
 

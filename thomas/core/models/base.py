@@ -1,27 +1,5 @@
-# -*- coding: utf-8 -*-
-import pandas as pd
-import numpy as np
+"""Base for probabilistic models."""
 
-
-def index_to_dict(idx):
-    if isinstance(idx, pd.MultiIndex):
-        return {i.name: list(i) for i in idx.levels}
-
-    return {idx.name: list(idx)}
-
-
-def remove_none_values_from_dict(dict_):
-    """Remove none values, like `None` and `np.nan` from the dict."""
-    def t(x):
-        return (x is None) or (isinstance(x, float) and np.isnan(x))
-
-    result = {k: v for k, v in dict_.items() if not t(v)}
-    return result
-
-
-# ------------------------------------------------------------------------------
-# ProbabilisticModel
-# ------------------------------------------------------------------------------
 class ProbabilisticModel(object):
 
     @classmethod

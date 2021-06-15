@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
-import os
 import unittest
-import doctest
 import logging
 import itertools
 import random
 
 import thomas.core
-from thomas.core.bayesiannetwork import BayesianNetwork
-from thomas.core import examples
+from thomas.core.models.bn import BayesianNetwork
 from thomas.core.reader import oobn, net
 
 log = logging.getLogger(__name__)
 
+
 class TestLungCancerNetwork(unittest.TestCase):
 
     def setUp(self):
-        fullpath = thomas.core.get_pkg_data('lungcancer.json')
+        fullpath = thomas.core.get_pkg_filename('lungcancer.json')
 
         self.lungcancer = BayesianNetwork.open(fullpath)
         self.maxDiff = None
@@ -24,7 +22,7 @@ class TestLungCancerNetwork(unittest.TestCase):
 
     def get_OOBN_path(self):
         """Return the path to the package's lungcancer.oobn"""
-        return thomas.core.get_pkg_data('lungcancer.oobn')
+        return thomas.core.get_pkg_filename('lungcancer.oobn')
 
     @unittest.skip
     def test_elimination_order_importance(self):
@@ -36,8 +34,6 @@ class TestLungCancerNetwork(unittest.TestCase):
         orders = list(itertools.permutations(nodes))
 
         for order in random.sample(orders, 5):
-            print()
-            print(order)
             self.lungcancer._jt = None
             self.lungcancer.elimination_order = order
 
@@ -47,14 +43,13 @@ class TestLungCancerNetwork(unittest.TestCase):
             self.assertAlmostEquals(cTNM['1B'], 0.1058, places=self.places)
             self.assertAlmostEquals(cTNM['2A'], 0.0172, places=self.places)
 
-
         self.lungcancer.elimination_order = None
 
     def test_net_reader(self):
-        filename = thomas.core.get_pkg_data('lungcancer.net')
+        filename = thomas.core.get_pkg_filename('lungcancer.net')
         bn_net = net.read(filename)
 
-        filename = thomas.core.get_pkg_data('lungcancer.oobn')
+        filename = thomas.core.get_pkg_filename('lungcancer.oobn')
         bn_oobn = oobn.read(filename)
 
         self.assertTrue(isinstance(bn_net, BayesianNetwork))
@@ -64,7 +59,6 @@ class TestLungCancerNetwork(unittest.TestCase):
         P2 = bn_oobn.compute_marginals(['T'])
 
         self.assertAlmostEqual(P1['T']['1A'], P2['T']['1A'], places=self.places)
-
 
     def test_node_T(self):
         # T = self.lungcancer.P('T')

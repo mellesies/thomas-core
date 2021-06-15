@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 import unittest
 import logging
 
 import thomas.core
-from thomas.core.bayesiannetwork import BayesianNetwork
+from thomas.core.models.bn import BayesianNetwork
 from thomas.core.reader import oobn
 
 log = logging.getLogger(__name__)
@@ -15,7 +14,7 @@ class TestOOBNReader(unittest.TestCase):
         self.places = 3
 
     def test_oobn_reader(self):
-        filename = thomas.core.get_pkg_data('prostatecancer.oobn')
+        filename = thomas.core.get_pkg_filename('prostatecancer.oobn')
         bn = oobn.read(filename)
 
         self.assertTrue(isinstance(bn, BayesianNetwork))
@@ -28,9 +27,9 @@ class TestOOBNReader(unittest.TestCase):
         self.assertAlmostEqual(cT['g2', 'T2'], 0.0)
         self.assertAlmostEqual(cT['g2', 'T3'], 0.0)
         self.assertAlmostEqual(cT['g2', 'T4'], 1.0)
-        self.assertAlmostEqual(cT['g3', 'T2'], 0.521457)
-        self.assertAlmostEqual(cT['g3', 'T3'], 0.442157)
-        self.assertAlmostEqual(cT['g3', 'T4'], 0.0363858)
+        self.assertAlmostEqual(cT['g3', 'T2'], 0.521457, places=5)
+        self.assertAlmostEqual(cT['g3', 'T3'], 0.442157, places=5)
+        self.assertAlmostEqual(cT['g3', 'T4'], 0.0363858, places=6)
 
         cN = bn['cN'].cpt.reorder_scope(['edition', 'cT'])
         self.assertAlmostEqual(cN['TNM 6', 'T2', 'NX'], 0.284264)
@@ -43,7 +42,7 @@ class TestOOBNReader(unittest.TestCase):
         self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 6', 'III'], 0.0)
         self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 6', 'IV'], 0.0)
 
-        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'I'], 0.522727)
-        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'II'], 0.454545)
-        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'III'], 0.0)
-        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'IV'], 0.0227273)
+        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'I'], 0.522727, places=6)
+        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'II'], 0.454545, places=6)
+        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'III'], 0.0, places=6)
+        self.assertAlmostEqual(cTNM['NX', 'T2', 'TNM 7', 'IV'], 0.0227273, places=6)

@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 """BayesianNetwork"""
-from typing import List, Tuple
-
-import sys
 from functools import reduce
 
 import numpy as np
@@ -13,19 +10,22 @@ import networkx.algorithms.moral
 
 import json
 
-from . import options
-from .factor import Factor
-from .cpt import CPT
-from .jpt import JPT
+from thomas.core import options
+from ...factors.factor import Factor
+from ...factors.cpt import CPT
+from ...factors.jpt import JPT
+from .node import Node
+from .discrete_node import DiscreteNetworkNode
 
-from .base import ProbabilisticModel
-from .bag import Bag
-from .junctiontree import JunctionTree
+from ..base import ProbabilisticModel
+from ..bag import Bag
+from ..jpt import JPTModel
+from ..junction_tree import JunctionTree
 
-from . import error
+from ... import error
 
 import logging
-log = logging.getLogger('thomas.bn')
+log = logging.getLogger(__name__)
 
 
 class BayesianNetwork(ProbabilisticModel):
@@ -77,6 +77,14 @@ class BayesianNetwork(ProbabilisticModel):
     def __getitem__(self, RV):
         """x[name] <==> x.nodes[name]"""
         return self.nodes[RV]
+
+    def __getattr__(self, attr: str):
+        """..."""
+        try:
+            return self.nodes[attr]
+        except KeyError:
+            msg = f"'BayesianNetwork' has no attribute '{attr}'"
+            raise AttributeError(msg)
 
     def __repr__(self):
         """x.__repr__() <==> repr(x)"""
@@ -209,7 +217,7 @@ class BayesianNetwork(ProbabilisticModel):
         return JPT(Factor(0, self.states) + (summed / summed.sum())['weight'])
 
     # --- graph manipulation ---
-    def add_nodes(self, nodes):
+    def add_nodes(self, nodes: Node):
         """Add a Node to the network."""
         for node in nodes:
             self.nodes[node.RV] = node
@@ -222,10 +230,6 @@ class BayesianNetwork(ProbabilisticModel):
             self.nodes[parent_RV].add_child(self.nodes[child_RV])
 
         self._jt = None
-
-    def delete_edge(self, edge: Tuple[str, str]):
-        parent_RV, child_RV = edge
-        self.nodes[parent_RV]
 
     def moralize_graph(self):
         """Return the moral graph for the DAG.
@@ -243,6 +247,7 @@ class BayesianNetwork(ProbabilisticModel):
         return list(G_moral.edges)
 
     # -- parameter estimation
+    # FIXME: move this to thomas.core.learn
     def EM_learning(self, data, max_iterations=1, notify=True):
         """Perform parameter learning.
         Sources:
@@ -351,6 +356,7 @@ class BayesianNetwork(ProbabilisticModel):
             if self.__widget and notify:
                 self.__widget.update()
 
+    # FIXME: move this to thomas.core.learn
     def ML_estimation(self, df):
         """Perform Maximum Likelihood estimation of the BN parameters.
 
@@ -370,7 +376,7 @@ class BayesianNetwork(ProbabilisticModel):
         # The empirical distribution may not contain all combinations of
         # variable states; `from_data` fixes that by setting all missing entries
         # to 0.
-        jpt = JPT.from_data(df, cols=self.scope)
+        jpt = JPTModel(JPT.from_data(df, cols=self.scope))
 
         for name, node in self.nodes.items():
             # print(name, node, node.cpt)
@@ -385,6 +391,7 @@ class BayesianNetwork(ProbabilisticModel):
         if self.__widget:
             self.__widget.update()
 
+    # FIXME: move this to thomas.core.learn
     def likelihood(self, df, per_case=False):
         """Return the likelihood of the current network parameters given data.
 
@@ -435,12 +442,12 @@ class BayesianNetwork(ProbabilisticModel):
         jt.ensure_cluster(Q)
         node = jt.get_node_for_set(Q)
 
-        joint = node.pull()
+        joint = node.project(RVs)
 
         if isinstance(RVs, list):
             joint = joint.reorder_scope(RVs)
 
-        return joint
+        return CPT(joint, conditioned=RVs)
 
     def compute_marginals(self, qd=None, ev=None):
         """Compute the marginals of the query variables given the evidence.
@@ -570,6 +577,9 @@ class BayesianNetwork(ProbabilisticModel):
             RV = cpt.conditioned[0]
             node = DiscreteNetworkNode(RV)
 
+            if cpt.description:
+                node.name = cpt.description
+
             for parent_RV in cpt.conditioning:
                 edges.append((parent_RV, RV))
 
@@ -651,7 +661,6 @@ class BayesianNetwork(ProbabilisticModel):
         name = d.get('name')
         nodes = [Node.from_dict(n) for n in d['nodes']]
         edges = d.get('edges')
-        # id_ = d.get('id')
         bn = BayesianNetwork(name, nodes, edges)
         return bn
 
@@ -666,359 +675,3 @@ class BayesianNetwork(ProbabilisticModel):
         with open(filename) as fp:
             data = fp.read()
             return cls.from_json(data)
-
-
-class Node(object):
-    """Base class for discrete and continuous nodes in a Bayesian Network.
-
-    In Hugin, discrete nodes can only have other discrete nodes as parents.
-    Continous nodes can have either continuous or discrete nodes as parents.
-
-    BayesiaLab does allow discrete nodes to have continous nodes as parents by
-    associating discrete states with the continous value.
-    """
-
-    def __init__(self, RV, name=None, description=''):
-        """Initialize a new Node.
-
-        Args:
-            RV (str): Name of the (conditioned) random variable
-            name (str): Name of the Node.
-            description (str): Name of the Node
-        """
-        self.RV = RV
-        self.name = name or RV
-        self.description = description
-
-        # A node needs to know its parents in order to determine the shape of
-        # its CPT. This should be a list of Nodes.
-        self._parents: List[Node] = []
-
-        # For purposes of message passing, a node also needs to know its
-        # children.
-        self._children: List[Node] = []
-
-    @property
-    def parents(self):
-        return self._parents
-
-    def has_parents(self):
-        """Return True iff this node has a parent."""
-        return len(self._parents) > 0
-
-    def has_children(self):
-        """Return True iff this node has children."""
-        return len(self._children) > 0
-
-    def add_parent(self, parent, add_child=True):
-        """Add a parent to the Node.
-
-        If succesful, the Node's distribution's parameters (ContinousNode) or
-        CPT (DiscreteNode) should be reset.
-
-        Args:
-            parent (Node): parent to add.
-            add_child (bool): iff true, this node is also added as a child to
-                the parent.
-
-        Return:
-            True iff the parent was added.
-        """
-        if parent not in self._parents:
-            self._parents.append(parent)
-
-            if add_child:
-                parent.add_child(self, add_parent=False)
-
-            return True
-
-        return False
-
-    def add_child(self, child: object, add_parent=True) -> bool:
-        """Add a child to the Node.
-
-        Args:
-            child (Node): child to add.
-            add_child (bool): iff true, this node is also added as a parent to
-                the child.
-
-        Return:
-            True iff the child was added.
-        """
-        if child not in self._children:
-            self._children.append(child)
-
-            if add_parent:
-                child.add_parent(self, add_child=False)
-
-            return True
-
-        return False
-
-    def remove_parent(self, parent: object, remove_child=True) -> bool:
-        """Remove a parent from the Node.
-
-        If succesful, the Node's distribution's parameters (ContinousNode) or
-        CPT (DiscreteNode) should be reset.
-
-        Return:
-            True iff the parent was removed.
-        """
-        if parent in self._parents:
-            self._parents.remove(parent)
-
-            if remove_child:
-                parent._children.remove(self)
-
-            return True
-
-        return False
-
-    def remove_child(self, child: object, remove_parent=True) -> bool:
-        """Remove a child from the Node.
-
-        Return:
-            True iff the parent was removed.
-        """
-        if child in self._children:
-            self._children.remove(child)
-
-            if remove_parent:
-                child._parents.remove(self)
-
-            return True
-
-        return False
-
-    def validate(self):
-        """Validate the probability parameters for this Node."""
-        raise NotImplementedError
-
-    @classmethod
-    def from_dict(cls, d):
-        """Return a Node (subclass) initialized by its dict representation."""
-        clsname = d['type']
-
-        if clsname == cls.__name__:
-            raise Exception('Cannot instantiate abstract class "Node"')
-
-        clstype = getattr(sys.modules[__name__], clsname)
-        return clstype.from_dict(d)
-
-
-class DiscreteNetworkNode(Node):
-    """Node in a Bayesian Network with discrete values."""
-
-    def __init__(self, RV, name=None, states=None, description='', cpt=None, position=None):
-        """Initialize a new discrete Node.
-
-        A Node represents a random variable (RV) in a Bayesian Network. For
-        this purpose, it keeps track of a conditional probability distribution
-        (CPT).
-
-        Args:
-            name (str): Name of the Node. Should correspond to the name of a
-                conditioned variable in the CPT.
-            states (list): List of states (strings)
-            description (str): Name of the Node
-        """
-        super().__init__(RV, name, description)
-
-        self.states = states or []
-        self.position = position if position is not None else [0, 0]
-
-        if cpt is not None:
-            self.cpt = cpt
-
-            if self.description == '':
-                self.description = cpt.description
-        else:
-            self._cpt = None
-
-    def __repr__(self):
-        """x.__repr__() <==> repr(x)"""
-        components = [f"DiscreteNetworkNode('{self.RV}'"]
-
-        if self.name:
-            components.append(f"name='{self.name}'")
-
-        if self.states:
-            states = ', '.join([f"'{s}'" for s in self.states])
-            components.append(f"states=[{states}]")
-
-        if self.description:
-            components.append(f"description='{self.description}'")
-
-        return ', '.join(components) + ')'
-
-    @property
-    def parents(self):
-        if self._cpt:
-            parents = dict([(p.RV, p) for p in self._parents])
-            sort_order = list(self._cpt.scope[:-1])
-
-            return [parents[p] for p in sort_order]
-
-        return self._parents
-
-    @property
-    def conditioned(self):
-        """Return the conditioned variable(s)."""
-        return self.cpt.conditioned
-
-    @property
-    def conditioning(self):
-        """Return the conditioning variable(s)."""
-        return self.cpt.conditioning
-
-    @property
-    def cpt(self):
-        """Return the Node's CPT."""
-        if self._cpt is None:
-            # Create a new, uniform,CPT
-            vs = {}
-
-            for p in self.parents:
-                vs[p.RV] = p.states
-
-            vs[self.RV] = self.states
-
-            self._cpt = CPT(1, states=vs).normalize()
-
-        return self._cpt
-
-    @cpt.setter
-    def cpt(self, cpt):
-        """
-        Set the Node's CPT.
-
-        This method should only be called *after* the node's parents are known!
-
-        Args:
-            cpt (CPT, Factor, pandas.Series): CPT for this node. Can be one of
-                CPT, Factor or pandas.Series. Factor or Series require an
-                appropriately set Index/MultiIndex.
-        """
-
-        # Do a sanity check and ensure that the CPTs has no more then a
-        # single conditioned variable. This is only useful if cpt is an
-        # actual CPT: for Factor/Series the last level in the index
-        # will be assumed to be the conditioned variable.
-        if not isinstance(cpt, CPT):
-            e = "Argument should be a CPT"
-            raise Exception(e)
-
-        elif len(cpt.conditioned) != 1:
-            e = "CPT should only have a single conditioned variable"
-            raise Exception(e)
-
-        elif cpt.conditioned[0] != self.RV:
-            e = "Conditioned variable in CPT should correspond to Node's RV"
-            raise Exception(e)
-
-        if not self.states:
-            self.states = cpt.states[self.RV]
-
-        # Looking good :-)
-        self._cpt = cpt
-
-    @property
-    def vars(self):
-        """Return the variables in this node (i.e. the scope) as a set."""
-        if self._cpt:
-            return self._cpt.vars
-
-        return []
-
-    def reset(self):
-        """Create a default CPT.
-
-        Throws an Exception if states is not set on this Node or one of its
-        parents.
-        """
-        states = {}
-
-        # Iterate over the parents (all DiscreteNodes) and the node itself to
-        # create a dict of states. In Python ≥ 3.6 these dicts are ordered!
-        for p in (self._parents + [self, ]):
-            if not p.states:
-                msg = 'Cannot reset the values of Node (with a parent) without'
-                msg += ' states!'
-                raise Exception(msg)
-
-            states[p.name] = p.states
-
-        # Assume a uniform distribution
-        self.cpt = CPT(1, states=states).normalize()
-
-    def add_parent(self, parent, **kwargs):
-        """Add a parent to the Node.
-
-        Discrete nodes can only have other discrete nodes as parents. If
-        succesful, the Node's CPT will be reset.
-
-        Return:
-            True iff the parent was added.
-        """
-        e = "Parent of a DiscreteNetworkNode should be a DiscreteNetworkNode."
-        e += f" Not a {type(parent)}"
-        assert isinstance(parent, DiscreteNetworkNode), e
-
-        if super().add_parent(parent, **kwargs):
-            return True
-
-        return False
-
-    def remove_parent(self, parent):
-        """Remove a parent from the Node.
-
-        If succesful, the Node's CPT will be reset.
-
-        Return:
-            True iff the parent was removed.
-        """
-        if super().remove_parent(parent):
-            self.reset()
-            return True
-
-        return False
-
-    def validate(self):
-        """Validate the probability parameters for this Node."""
-        if self.cpt.conditioning != [p.RV for p in self._parents]:
-            e  = "Conditioning variables in CPT should correspond to Node's"
-            e += " parents. Order is important!"
-            raise Exception(e)
-
-    # --- (de)serialization ---
-    def as_dict(self):
-        """Return a dict representation of this Node."""
-        cpt = self.cpt.as_dict() if self.cpt else None
-
-        d = {
-            'type': 'DiscreteNetworkNode',
-            'RV': self.RV,
-            'name': self.name,
-            'states': self.states,
-            'description': self.description,
-            'cpt': cpt,
-            'position': self.position,
-        }
-
-        return d
-
-    @classmethod
-    def from_dict(cls, d):
-        """Return a DiscreteNetworkNode initialized by its dict representation."""
-        cpt = CPT.from_dict(d['cpt'])
-
-        node = DiscreteNetworkNode(
-            RV=d['RV'],
-            name=d['name'],
-            states=d['states'],
-            description=d['description']
-        )
-        node.position = d.get('position', (0, 0))
-        node.cpt = cpt
-
-        return node

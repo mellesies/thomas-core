@@ -1,11 +1,14 @@
-# -*- coding: utf-8 -*-
 """CPT: Conditional Probability Table."""
-from .factor import *
+import logging
+
+import pandas as pd
+
+from thomas.core import options
+from .factor import Factor
+
+log = logging.getLogger(__name__)
 
 
-# ------------------------------------------------------------------------------
-# CPT: Conditional Probability Distribution
-# ------------------------------------------------------------------------------
 class CPT(Factor):
     """Conditional Probability Distribution.
 
@@ -49,6 +52,21 @@ class CPT(Factor):
             order = conditioning + conditioned
             self.reorder_scope(order, inplace=True)
 
+        # Make sure that the CPTs rows sum to 1. We'll need to add a level
+        # to row_sum for broadcasting to work properly.
+        if len(conditioning):
+            log.debug(f"Conditioning on {len(conditioning)} variable(s), so normalizing rows!")
+            sum_idx = (slice(None), ) * len(conditioning) + (None, ) * len(conditioned)
+            axes = tuple(range(-1, -len(conditioned) - 1, -1))
+
+            log.debug(f"  sum_idx: {sum_idx}")
+            log.debug(f"  axes: {axes}")
+            row_sum = self.values.sum(axis=axes)[sum_idx]
+            self.values = self.values / row_sum
+
+        else:
+            log.debug("Keeping the rows as is, we're not conditioning on anything.")
+
         # Set remaining attributes
         self.conditioned = conditioned
         self.conditioning = conditioning
@@ -85,13 +103,15 @@ class CPT(Factor):
         Note that the order of the index may differ as pandas sorts it when
         performing `unstack()`.
         """
+        precision = options.get('precision', 4)
         data = self.as_series()
 
-        if self.conditioning:
-            html = data.unstack(self.conditioned)._repr_html_()
-        else:
-            df = pd.DataFrame(data, columns=['']).transpose()
-            html = df._repr_html_()
+        with pd.option_context('precision', precision):
+            if self.conditioning:
+                html = data.unstack(self.conditioned)._repr_html_()
+            else:
+                df = pd.DataFrame(data, columns=['']).transpose()
+                html = df._repr_html_()
 
         return f"""
             <div>

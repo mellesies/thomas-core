@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import lark
 
-from ..cpt import CPT
-from .. import bayesiannetwork
+from ..factors.cpt import CPT
+from ..models import bn
 
 GRAMMAR = r"""
     oobn_class: "class" name properties [comment]
@@ -272,14 +272,14 @@ def _create_bn(structure):
         # if None in cpt.index.names:
         #     cpt.index = cpt.index.droplevel()
 
-        constructor = getattr(bayesiannetwork, node_properties['type'])
+        constructor = getattr(bn, node_properties['type'])
 
         n = constructor(RV, name, states, description, cpt)
         n.position = position
         nodes.append(n)
 
     edges = structure['edges']
-    return bayesiannetwork.BayesianNetwork(structure['name'], nodes, edges)
+    return bn.BayesianNetwork(structure['name'], nodes, edges)
 
 
 def read(filename):
